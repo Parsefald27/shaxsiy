@@ -18,9 +18,6 @@
     <ClCompile Include="Forma1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Forma2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Forma3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -30,9 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Forma1.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Forma2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Forma3.h">

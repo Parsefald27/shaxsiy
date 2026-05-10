@@ -20,15 +20,9 @@ namespace shaxsiy {
 		{
 			InitializeComponent();
 			Forma1 = forma1;
-			//
-			//TODO: Add the constructor code here
-			//
 		}
 
 	protected:
-		/// <summary>
-		/// Clean up any resources being used.
-		/// </summary>
 		~Forma3()
 		{
 			if (components)
@@ -99,7 +93,7 @@ namespace shaxsiy {
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->qaytish->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 18.32727F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qaytish->Location = System::Drawing::Point(787, 483);
+			this->qaytish->Location = System::Drawing::Point(1633, 712);
 			this->qaytish->Name = L"qaytish";
 			this->qaytish->Size = System::Drawing::Size(191, 50);
 			this->qaytish->TabIndex = 1;
@@ -112,7 +106,7 @@ namespace shaxsiy {
 			this->anonimjshshir->Anchor = System::Windows::Forms::AnchorStyles::Top;
 			this->anonimjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular,
 				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
-			this->anonimjshshir->Location = System::Drawing::Point(272, 27);
+			this->anonimjshshir->Location = System::Drawing::Point(695, 28);
 			this->anonimjshshir->Name = L"anonimjshshir";
 			this->anonimjshshir->Size = System::Drawing::Size(383, 31);
 			this->anonimjshshir->TabIndex = 2;
@@ -126,7 +120,7 @@ namespace shaxsiy {
 			this->label2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 18.32727F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->label2->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
-			this->label2->Location = System::Drawing::Point(134, 24);
+			this->label2->Location = System::Drawing::Point(557, 24);
 			this->label2->Name = L"label2";
 			this->label2->Size = System::Drawing::Size(132, 32);
 			this->label2->TabIndex = 3;
@@ -137,7 +131,7 @@ namespace shaxsiy {
 			this->anonimizlash->Anchor = System::Windows::Forms::AnchorStyles::Top;
 			this->anonimizlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular,
 				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
-			this->anonimizlash->Location = System::Drawing::Point(677, 27);
+			this->anonimizlash->Location = System::Drawing::Point(1100, 27);
 			this->anonimizlash->Name = L"anonimizlash";
 			this->anonimizlash->Size = System::Drawing::Size(112, 31);
 			this->anonimizlash->TabIndex = 4;
@@ -150,7 +144,7 @@ namespace shaxsiy {
 			this->malumotmanzil->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotmanzil->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotmanzil->Location = System::Drawing::Point(479, 287);
+			this->malumotmanzil->Location = System::Drawing::Point(902, 402);
 			this->malumotmanzil->Name = L"malumotmanzil";
 			this->malumotmanzil->ReadOnly = true;
 			this->malumotmanzil->Size = System::Drawing::Size(388, 31);
@@ -161,7 +155,7 @@ namespace shaxsiy {
 			this->malumotjshshir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotjshshir->Location = System::Drawing::Point(479, 250);
+			this->malumotjshshir->Location = System::Drawing::Point(902, 365);
 			this->malumotjshshir->Name = L"malumotjshshir";
 			this->malumotjshshir->ReadOnly = true;
 			this->malumotjshshir->Size = System::Drawing::Size(388, 31);
@@ -172,7 +166,7 @@ namespace shaxsiy {
 			this->malumotota->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotota->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotota->Location = System::Drawing::Point(479, 213);
+			this->malumotota->Location = System::Drawing::Point(902, 328);
 			this->malumotota->Name = L"malumotota";
 			this->malumotota->ReadOnly = true;
 			this->malumotota->Size = System::Drawing::Size(388, 31);
@@ -183,7 +177,7 @@ namespace shaxsiy {
 			this->malumotfamilya->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotfamilya->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotfamilya->Location = System::Drawing::Point(479, 176);
+			this->malumotfamilya->Location = System::Drawing::Point(902, 291);
 			this->malumotfamilya->Name = L"malumotfamilya";
 			this->malumotfamilya->ReadOnly = true;
 			this->malumotfamilya->Size = System::Drawing::Size(388, 31);
@@ -194,7 +188,7 @@ namespace shaxsiy {
 			this->malumotism->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotism->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotism->Location = System::Drawing::Point(479, 139);
+			this->malumotism->Location = System::Drawing::Point(902, 254);
 			this->malumotism->Name = L"malumotism";
 			this->malumotism->ReadOnly = true;
 			this->malumotism->Size = System::Drawing::Size(388, 31);
@@ -206,7 +200,7 @@ namespace shaxsiy {
 			this->label20->AutoSize = true;
 			this->label20->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label20->Location = System::Drawing::Point(281, 290);
+			this->label20->Location = System::Drawing::Point(704, 405);
 			this->label20->Name = L"label20";
 			this->label20->Size = System::Drawing::Size(192, 25);
 			this->label20->TabIndex = 19;
@@ -218,7 +212,7 @@ namespace shaxsiy {
 			this->label21->AutoSize = true;
 			this->label21->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label21->Location = System::Drawing::Point(358, 253);
+			this->label21->Location = System::Drawing::Point(781, 368);
 			this->label21->Name = L"label21";
 			this->label21->Size = System::Drawing::Size(115, 25);
 			this->label21->TabIndex = 20;
@@ -230,7 +224,7 @@ namespace shaxsiy {
 			this->label22->AutoSize = true;
 			this->label22->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label22->Location = System::Drawing::Point(305, 216);
+			this->label22->Location = System::Drawing::Point(728, 331);
 			this->label22->Name = L"label22";
 			this->label22->Size = System::Drawing::Size(168, 25);
 			this->label22->TabIndex = 21;
@@ -242,7 +236,7 @@ namespace shaxsiy {
 			this->label23->AutoSize = true;
 			this->label23->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label23->Location = System::Drawing::Point(372, 179);
+			this->label23->Location = System::Drawing::Point(795, 294);
 			this->label23->Name = L"label23";
 			this->label23->Size = System::Drawing::Size(101, 25);
 			this->label23->TabIndex = 22;
@@ -254,7 +248,7 @@ namespace shaxsiy {
 			this->label24->AutoSize = true;
 			this->label24->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label24->Location = System::Drawing::Point(418, 142);
+			this->label24->Location = System::Drawing::Point(841, 257);
 			this->label24->Name = L"label24";
 			this->label24->Size = System::Drawing::Size(55, 25);
 			this->label24->TabIndex = 23;
@@ -264,9 +258,9 @@ namespace shaxsiy {
 			// 
 			this->pictureBox1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->pictureBox1->BackColor = System::Drawing::SystemColors::GradientActiveCaption;
-			this->pictureBox1->Location = System::Drawing::Point(74, 142);
+			this->pictureBox1->Location = System::Drawing::Point(497, 230);
 			this->pictureBox1->Name = L"pictureBox1";
-			this->pictureBox1->Size = System::Drawing::Size(149, 173);
+			this->pictureBox1->Size = System::Drawing::Size(168, 224);
 			this->pictureBox1->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
 			this->pictureBox1->TabIndex = 29;
 			this->pictureBox1->TabStop = false;
@@ -277,7 +271,7 @@ namespace shaxsiy {
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
 			this->BackColor = System::Drawing::SystemColors::ActiveCaption;
 			this->BackgroundImageLayout = System::Windows::Forms::ImageLayout::Stretch;
-			this->ClientSize = System::Drawing::Size(1006, 545);
+			this->ClientSize = System::Drawing::Size(1852, 774);
 			this->Controls->Add(this->pictureBox1);
 			this->Controls->Add(this->malumotmanzil);
 			this->Controls->Add(this->malumotjshshir);
@@ -304,6 +298,9 @@ namespace shaxsiy {
 #pragma endregion
 	private: System::Void qaytish_Click(System::Object^ sender, System::EventArgs^ e) {
 				Forma1->Show();
+				Forma1->StartPosition = FormStartPosition::Manual;
+				Forma1->Location = this->Location;
+				Forma1->Size = this->Size;
 				this->Hide();
 	}
 private: System::Void anonimizlash_Click(System::Object^ sender, System::EventArgs^ e) {

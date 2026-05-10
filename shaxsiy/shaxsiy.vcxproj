@@ -132,15 +132,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Forma1.cpp" />
-    <ClCompile Include="Forma2.cpp" />
     <ClCompile Include="Forma3.cpp" />
     <ClCompile Include="Forma4.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Forma1.h">
-      <FileType>CppForm</FileType>
-    </ClInclude>
-    <ClInclude Include="Forma2.h">
       <FileType>CppForm</FileType>
     </ClInclude>
     <ClInclude Include="Forma3.h">
@@ -153,9 +149,6 @@
   <ItemGroup>
     <EmbeddedResource Include="Forma1.resx">
       <DependentUpon>Forma1.h</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Forma2.resx">
-      <DependentUpon>Forma2.h</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forma3.resx">
       <DependentUpon>Forma3.h</DependentUpon>

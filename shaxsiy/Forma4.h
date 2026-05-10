@@ -1,12 +1,19 @@
 #pragma once
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h> // Winsock dan oldin buni yuklash tartibni saqlaydi
 #include "Forma2.h"
+// 14-qator: using namespace System::Data::SqlClient;
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
 namespace shaxsiy {
 
 	using namespace System;
 	using namespace System::ComponentModel;
 	using namespace System::Collections;
 	using namespace System::Windows::Forms;
-    using namespace System::Drawing;
+	using namespace System::Drawing;
 	using namespace AForge::Video;
 	using namespace AForge::Video::DirectShow;
 	using namespace System::Data;
@@ -18,7 +25,7 @@ namespace shaxsiy {
 		Form^ Forma1;
 		FilterInfoCollection^ videoDevices;
 		String^ activeLogin;
-		
+
 		Forma4(String^ login, Form^ forma1)
 		{
 			InitializeComponent();
@@ -29,9 +36,9 @@ namespace shaxsiy {
 	public:
 		Forma4()
 		{
-			
+
 			InitializeComponent();
-			
+
 		}
 	public:
 		void YuklashMalumotlar()
@@ -39,8 +46,8 @@ namespace shaxsiy {
 			try {
 				if (String::IsNullOrEmpty(activeLogin)) return;
 
-				String^ connStr = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
-				SqlConnection^ ulanish = gcnew SqlConnection(connStr);
+				String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
+				SqlConnection^ ulanish = gcnew SqlConnection(connString);
 
 				String^ query = "SELECT ism, familiya, otasining_ismi, jshshir, manzil, parol FROM hisob WHERE login = @login";
 				SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
@@ -70,7 +77,7 @@ namespace shaxsiy {
 	private: System::Windows::Forms::Panel^ panelasosiy;
 	private: System::Windows::Forms::Panel^ panelhisob;
 	private: System::Windows::Forms::TextBox^ hisobota;
-	private: System::Windows::Forms::TextBox^ textBox2;
+
 	private: System::Windows::Forms::TextBox^ hisobism;
 	private: System::Windows::Forms::Label^ label3;
 	private: System::Windows::Forms::Label^ label2;
@@ -79,7 +86,7 @@ namespace shaxsiy {
 	private: System::Windows::Forms::TextBox^ hisobjshshir;
 	private: System::Windows::Forms::Label^ label4;
 	private: System::Windows::Forms::TextBox^ hisobfamilya;
-	private: System::Windows::Forms::TextBox^ textBox7;
+
 	private: System::Windows::Forms::Label^ label5;
 	private: System::Windows::Forms::TextBox^ hisobmanzil;
 	private: System::Windows::Forms::Label^ label6;
@@ -146,14 +153,224 @@ namespace shaxsiy {
 	private: System::Windows::Forms::PictureBox^ rasmtahrir;
 	private: System::Windows::Forms::CheckBox^ checkBox1;
 	private: System::Windows::Forms::PictureBox^ pictureBox2;
+	private:
+		// Socket
+		SOCKET      m_socket = INVALID_SOCKET;
+		bool        m_connected = false;
+		bool        m_tanishAktiv = false;   // true = hali tanilmagan, yuborish davom etadi
+
+		// Timer (har 3 soniyada rasm yuborish)
+		System::Windows::Forms::Timer^ m_timer;
+
+		// ── Socket ulanish ──────────────────────────────────────────
+		bool SocketUlan() {
+			WSADATA wsa;
+			WSAStartup(MAKEWORD(2, 2), &wsa);
+
+			m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if (m_socket == INVALID_SOCKET) return false;
+
+			sockaddr_in addr{};
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(9999);
+			inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+
+			if (connect(m_socket, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+				closesocket(m_socket);
+				m_socket = INVALID_SOCKET;
+				return false;
+			}
+			m_connected = true;
+			return true;
+		}
+
+		void SocketYop() {
+			if (m_socket != INVALID_SOCKET) {
+				unsigned char zero[4] = { 0,0,0,0 };
+				send(m_socket, (char*)zero, 4, 0);
+				closesocket(m_socket);
+				m_socket = INVALID_SOCKET;
+			}
+			m_connected = false;
+			WSACleanup();
+		}
+
+		// ── Bitmap → JPEG baytlari va serverga yuborish ─────────────
+		bool RasmYuborish(System::Drawing::Bitmap^ bmp) {
+			if (!m_connected || bmp == nullptr) return false;
+			try {
+				// Bitmap → MemoryStream (JPEG)
+				System::IO::MemoryStream^ ms = gcnew System::IO::MemoryStream();
+				bmp->Save(ms, System::Drawing::Imaging::ImageFormat::Jpeg);
+				array<Byte>^ imgArr = ms->ToArray();
+
+				// 4 baytli header (big-endian)
+				unsigned int sz = imgArr->Length;
+				unsigned char hdr[4] = {
+					(unsigned char)((sz >> 24) & 0xFF),
+					(unsigned char)((sz >> 16) & 0xFF),
+					(unsigned char)((sz >> 8) & 0xFF),
+					(unsigned char)(sz & 0xFF)
+				};
+				send(m_socket, (char*)hdr, 4, 0);
+
+				// Rasmni yuborish (pin memory orqali)
+				pin_ptr<Byte> p = &imgArr[0];
+				int sent = 0;
+				while (sent < (int)sz) {
+					int n = send(m_socket, (char*)(p + sent), sz - sent, 0);
+					if (n <= 0) return false;
+					sent += n;
+				}
+				return true;
+			}
+			catch (...) { return false; }
+		}
+
+		// ── Serverdan JSON javob olish ───────────────────────────────
+		String^ JavobOlish() {
+			String^ result = "";
+			char ch;
+			while (true) {
+				int n = recv(m_socket, &ch, 1, 0);
+				if (n <= 0) break;
+				if (ch == '\n') break;
+				result += (wchar_t)ch;
+			}
+			return result;
+		}
+
+		// ── JSON dan qiymat olish (oddiy parser) ─────────────────────
+		String^ JsonQiymat(String^ json, String^ kalit) {
+			String^ search = "\"" + kalit + "\"";
+			int pos = json->IndexOf(search);
+			if (pos < 0) return "";
+			pos = json->IndexOf(":", pos);
+			if (pos < 0) return "";
+			pos++;
+			while (pos < json->Length && (json[pos] == ' ' || json[pos] == '\t')) pos++;
+			if (pos >= json->Length) return "";
+
+			if (json[pos] == '"') {
+				int end = json->IndexOf('"', pos + 1);
+				if (end < 0) return "";
+				return json->Substring(pos + 1, end - pos - 1);
+			}
+			// raqam yoki bool
+			int endPos = json->IndexOfAny(gcnew array<wchar_t>{',', '}'}, pos);
+			if (endPos < 0) endPos = json->Length;
+			return json->Substring(pos, endPos - pos)->Trim();
+		}
+
+		// ── SQL dan JSHSHIR bo'yicha ma'lumot olish ──────────────────
+		void MalumotKorsatish(String^ jshshir) {
+			try {
+				SqlConnection^ ulanish = gcnew SqlConnection(connString);
+				// Mavjud hisob jadvalidagi ustunlar:
+				// login, parol, ism, otasining_ismi, familiya, jshshir, manzil
+				String^ query =
+					"SELECT ism, familiya, otasining_ismi, jshshir, manzil "
+					"FROM hisob WHERE jshshir = @jsh";
+
+				SqlCommand^ cmd = gcnew SqlCommand(query, ulanish);
+				cmd->Parameters->AddWithValue("@jsh", jshshir);
+
+				ulanish->Open();
+				SqlDataReader^ r = cmd->ExecuteReader();
+
+				if (r->Read()) {
+					// asosiytext maydoniga ma'lumotlarni chiqarish
+					this->asosiytext->Clear();
+					this->asosiytext->AppendText("─── SHAXS ANIQLANDI ───\r\n\r\n");
+					this->asosiytext->AppendText("Ismi:       " + r["ism"]->ToString() + "\r\n");
+					this->asosiytext->AppendText("Familyasi:  " + r["familiya"]->ToString() + "\r\n");
+					this->asosiytext->AppendText("Otasi:      " + r["otasining_ismi"]->ToString() + "\r\n");
+					this->asosiytext->AppendText("JShShIR:    " + r["jshshir"]->ToString() + "\r\n");
+					this->asosiytext->AppendText("Manzil:     " + r["manzil"]->ToString() + "\r\n");
+					this->asosiytext->AppendText("\r\n  Muvaffaqiyatli tanildi!");
+
+					// Shaxs topildi → yuborishni to'xtatamiz
+					m_tanishAktiv = false;
+					m_timer->Stop();
+					asosiylabel->Text = "✅ Shaxs aniqlandi: " + r["ism"]->ToString()
+						+ " " + r["familiya"]->ToString();
+				}
+				else {
+					// Python yuz topdi lekin SQL da yo'q
+					this->asosiytext->AppendText("⚠ Yuz tanildi (JShShIR: "
+						+ jshshir + ") lekin bazada topilmadi.\r\n");
+				}
+				ulanish->Close();
+			}
+			catch (Exception^ ex) {
+				this->asosiytext->AppendText("SQL xato: " + ex->Message + "\r\n");
+			}
+		}
+
+		// ── Timer tick: har 3 soniyada ishga tushadi ─────────────────
+		System::Void TimerTick(System::Object^ sender, System::EventArgs^ e) {
+			if (!m_tanishAktiv) return;
+
+			System::Drawing::Image^ img = this->asosiypicture->Image;
+			if (img == nullptr) return;
+
+			System::Drawing::Bitmap^ bmp = gcnew System::Drawing::Bitmap(img);
+			try {
+				// 1) Rasmni serverga yuborish
+				if (!RasmYuborish(bmp)) {
+					this->asosiytext->Clear();
+					this->asosiytext->AppendText("❌ Server bilan ulanishda xato!\r\n"
+						"   face_server.py ishga tushganini tekshiring.\r\n");
+					m_timer->Stop();
+					m_tanishAktiv = false;
+					return;
+				}
+
+				// 2) Python serverdan JSON javob olish
+				//    Mumkin javoblar:
+				//      {"status":"found",    "jshshir":"12345678901234", "confidence":0.92}
+				//      {"status":"not_found","confidence":0.0}
+				//      {"status":"error",    "message":"..."}
+				String^ javob = JavobOlish();
+				if (String::IsNullOrEmpty(javob)) return;
+
+				String^ status = JsonQiymat(javob, "status");
+
+				if (status == "found") {
+					// ✅ Yuz tanildi — faqat JSHSHIR raqamini ajratib olamiz
+					String^ jshshir = JsonQiymat(javob, "jshshir");
+					String^ conf = JsonQiymat(javob, "confidence");
+
+					if (!String::IsNullOrEmpty(jshshir)) {
+						// UI threadida SQL so'rovi va natijani ko'rsatish
+						this->Invoke(gcnew Action<String^>(
+							this, &Forma4::MalumotKorsatish), jshshir);
+					}
+				}
+				else if (status == "not_found") {
+					// Hali tanilmadi — davom etamiz
+					this->asosiytext->Clear();
+					this->asosiytext->AppendText("  Yuz izlanmoqda...\r\n");
+					asosiylabel->Text = L"Kamerada bir kishining yuzi ko'rinishini ta'minlang!";
+				}
+				else if (status == "error") {
+					String^ msg = JsonQiymat(javob, "message");
+					this->asosiytext->AppendText("  Server xato: " + msg + "\r\n");
+				}
+			}
+			catch (Exception^) {
+				// Timer to'xtab qolmasligi uchun xatoni yutamiz
+			}
+			finally {
+				delete bmp;
+			}
+		}
 
 
 
-
-
-		   VideoCaptureDevice^ videoSource;
+		VideoCaptureDevice^ videoSource;
 	public:
-		Forma4(Form^forma1)
+		Forma4(Form^ forma1)
 		{
 			Forma1 = forma1;
 			InitializeComponent();
@@ -162,22 +379,22 @@ namespace shaxsiy {
 	protected:
 		~Forma4()
 		{
-		try {
-			if (videoSource != nullptr) {
-				if (videoSource->IsRunning) {
-					videoSource->SignalToStop();
-					videoSource->WaitForStop();
+			try {
+				if (videoSource != nullptr) {
+					if (videoSource->IsRunning) {
+						videoSource->SignalToStop();
+						videoSource->WaitForStop();
+					}
+					videoSource = nullptr;
 				}
-				videoSource = nullptr;
 			}
-		}
-		catch (...) {
-	
-		}
-		if (components)
-		{
-			delete components;
-		}
+			catch (...) {
+
+			}
+			if (components)
+			{
+				delete components;
+			}
 		}
 	private: String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
 	private: System::Windows::Forms::Panel^ panel1;
@@ -189,7 +406,7 @@ namespace shaxsiy {
 	private: System::Windows::Forms::PictureBox^ asosiypicture;
 	private: System::Windows::Forms::TextBox^ asosiytext;
 	private:
-		System::ComponentModel::Container ^components;
+		System::ComponentModel::Container^ components;
 
 #pragma region Windows Form Designer generated code
 		void InitializeComponent(void)
@@ -220,8 +437,6 @@ namespace shaxsiy {
 			this->hisobjshshir = (gcnew System::Windows::Forms::TextBox());
 			this->hisobota = (gcnew System::Windows::Forms::TextBox());
 			this->hisobfamilya = (gcnew System::Windows::Forms::TextBox());
-			this->textBox7 = (gcnew System::Windows::Forms::TextBox());
-			this->textBox2 = (gcnew System::Windows::Forms::TextBox());
 			this->hisobism = (gcnew System::Windows::Forms::TextBox());
 			this->label7 = (gcnew System::Windows::Forms::Label());
 			this->label6 = (gcnew System::Windows::Forms::Label());
@@ -311,7 +526,7 @@ namespace shaxsiy {
 			this->panel1->Dock = System::Windows::Forms::DockStyle::Left;
 			this->panel1->Location = System::Drawing::Point(0, 0);
 			this->panel1->Name = L"panel1";
-			this->panel1->Size = System::Drawing::Size(200, 569);
+			this->panel1->Size = System::Drawing::Size(200, 787);
 			this->panel1->TabIndex = 0;
 			// 
 			// chiqish
@@ -322,7 +537,7 @@ namespace shaxsiy {
 				static_cast<System::Byte>(162)));
 			this->chiqish->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
 			this->chiqish->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
-			this->chiqish->Location = System::Drawing::Point(0, 520);
+			this->chiqish->Location = System::Drawing::Point(0, 738);
 			this->chiqish->Name = L"chiqish";
 			this->chiqish->Size = System::Drawing::Size(197, 49);
 			this->chiqish->TabIndex = 0;
@@ -390,30 +605,30 @@ namespace shaxsiy {
 			this->menu->Text = L"   Menu";
 			this->menu->UseVisualStyleBackColor = true;
 			this->menu->Click += gcnew System::EventHandler(this, &Forma4::menu_Click);
+			this->menu->MouseEnter += gcnew System::EventHandler(this, &Forma4::menu_MouseEnter);
 			// 
 			// asosiypicture
 			// 
 			this->asosiypicture->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
 				| System::Windows::Forms::AnchorStyles::Left)
 				| System::Windows::Forms::AnchorStyles::Right));
-			this->asosiypicture->Location = System::Drawing::Point(-3, 18);
+			this->asosiypicture->Location = System::Drawing::Point(12, 18);
 			this->asosiypicture->Name = L"asosiypicture";
-			this->asosiypicture->Size = System::Drawing::Size(813, 429);
+			this->asosiypicture->Size = System::Drawing::Size(1405, 644);
 			this->asosiypicture->SizeMode = System::Windows::Forms::PictureBoxSizeMode::Zoom;
 			this->asosiypicture->TabIndex = 1;
 			this->asosiypicture->TabStop = false;
 			// 
 			// asosiytext
 			// 
-			this->asosiytext->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
-				| System::Windows::Forms::AnchorStyles::Left)
+			this->asosiytext->Anchor = static_cast<System::Windows::Forms::AnchorStyles>(((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
 				| System::Windows::Forms::AnchorStyles::Right));
 			this->asosiytext->BackColor = System::Drawing::Color::MintCream;
-			this->asosiytext->Location = System::Drawing::Point(816, 18);
+			this->asosiytext->Location = System::Drawing::Point(1423, 18);
 			this->asosiytext->Multiline = true;
 			this->asosiytext->Name = L"asosiytext";
 			this->asosiytext->ReadOnly = true;
-			this->asosiytext->Size = System::Drawing::Size(207, 387);
+			this->asosiytext->Size = System::Drawing::Size(378, 602);
 			this->asosiytext->TabIndex = 2;
 			// 
 			// asosiybatafsil
@@ -422,12 +637,13 @@ namespace shaxsiy {
 			this->asosiybatafsil->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->asosiybatafsil->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->asosiybatafsil->Location = System::Drawing::Point(816, 407);
+			this->asosiybatafsil->Location = System::Drawing::Point(1516, 622);
 			this->asosiybatafsil->Name = L"asosiybatafsil";
 			this->asosiybatafsil->Size = System::Drawing::Size(207, 40);
 			this->asosiybatafsil->TabIndex = 3;
 			this->asosiybatafsil->Text = L"Batafsil";
 			this->asosiybatafsil->UseVisualStyleBackColor = true;
+			this->asosiybatafsil->Click += gcnew System::EventHandler(this, &Forma4::asosiybatafsil_Click);
 			// 
 			// asosiylabel
 			// 
@@ -437,7 +653,7 @@ namespace shaxsiy {
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->asosiylabel->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 15.70909F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->asosiylabel->Location = System::Drawing::Point(213, 459);
+			this->asosiylabel->Location = System::Drawing::Point(447, 665);
 			this->asosiylabel->Name = L"asosiylabel";
 			this->asosiylabel->Size = System::Drawing::Size(597, 29);
 			this->asosiylabel->TabIndex = 4;
@@ -452,7 +668,7 @@ namespace shaxsiy {
 			this->panel2->Controls->Add(this->hisob);
 			this->panel2->Location = System::Drawing::Point(0, 0);
 			this->panel2->Name = L"panel2";
-			this->panel2->Size = System::Drawing::Size(1040, 69);
+			this->panel2->Size = System::Drawing::Size(1818, 69);
 			this->panel2->TabIndex = 5;
 			// 
 			// boshlabel
@@ -463,7 +679,7 @@ namespace shaxsiy {
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->boshlabel->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 15.70909F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->boshlabel->Location = System::Drawing::Point(438, 17);
+			this->boshlabel->Location = System::Drawing::Point(827, 17);
 			this->boshlabel->Name = L"boshlabel";
 			this->boshlabel->Size = System::Drawing::Size(148, 29);
 			this->boshlabel->TabIndex = 2;
@@ -478,7 +694,7 @@ namespace shaxsiy {
 			this->hisob->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->hisob->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.12727F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisob->Location = System::Drawing::Point(928, 3);
+			this->hisob->Location = System::Drawing::Point(1706, 3);
 			this->hisob->Name = L"hisob";
 			this->hisob->Size = System::Drawing::Size(109, 63);
 			this->hisob->TabIndex = 0;
@@ -491,17 +707,20 @@ namespace shaxsiy {
 			this->panelasosiy->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
 				| System::Windows::Forms::AnchorStyles::Left)
 				| System::Windows::Forms::AnchorStyles::Right));
+			this->panelasosiy->Controls->Add(this->asosiytext);
 			this->panelasosiy->Controls->Add(this->asosiypicture);
 			this->panelasosiy->Controls->Add(this->asosiylabel);
 			this->panelasosiy->Controls->Add(this->asosiybatafsil);
-			this->panelasosiy->Controls->Add(this->asosiytext);
 			this->panelasosiy->Location = System::Drawing::Point(0, 72);
 			this->panelasosiy->Name = L"panelasosiy";
-			this->panelasosiy->Size = System::Drawing::Size(1037, 497);
+			this->panelasosiy->Size = System::Drawing::Size(1815, 712);
 			this->panelasosiy->TabIndex = 6;
 			// 
 			// panelhisob
 			// 
+			this->panelhisob->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
+				| System::Windows::Forms::AnchorStyles::Left)
+				| System::Windows::Forms::AnchorStyles::Right));
 			this->panelhisob->Controls->Add(this->button2);
 			this->panelhisob->Controls->Add(this->button1);
 			this->panelhisob->Controls->Add(this->hisobparol2);
@@ -512,8 +731,6 @@ namespace shaxsiy {
 			this->panelhisob->Controls->Add(this->hisobjshshir);
 			this->panelhisob->Controls->Add(this->hisobota);
 			this->panelhisob->Controls->Add(this->hisobfamilya);
-			this->panelhisob->Controls->Add(this->textBox7);
-			this->panelhisob->Controls->Add(this->textBox2);
 			this->panelhisob->Controls->Add(this->hisobism);
 			this->panelhisob->Controls->Add(this->label7);
 			this->panelhisob->Controls->Add(this->label6);
@@ -526,15 +743,16 @@ namespace shaxsiy {
 			this->panelhisob->Cursor = System::Windows::Forms::Cursors::IBeam;
 			this->panelhisob->Location = System::Drawing::Point(203, 72);
 			this->panelhisob->Name = L"panelhisob";
-			this->panelhisob->Size = System::Drawing::Size(831, 494);
+			this->panelhisob->Size = System::Drawing::Size(1609, 712);
 			this->panelhisob->TabIndex = 5;
 			// 
 			// button2
 			// 
+			this->button2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->button2->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->button2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->button2->Location = System::Drawing::Point(640, 425);
+			this->button2->Location = System::Drawing::Point(1029, 534);
 			this->button2->Name = L"button2";
 			this->button2->Size = System::Drawing::Size(139, 31);
 			this->button2->TabIndex = 3;
@@ -544,10 +762,11 @@ namespace shaxsiy {
 			// 
 			// button1
 			// 
+			this->button1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->button1->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->button1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->button1->Location = System::Drawing::Point(640, 326);
+			this->button1->Location = System::Drawing::Point(1029, 435);
 			this->button1->Name = L"button1";
 			this->button1->Size = System::Drawing::Size(139, 31);
 			this->button1->TabIndex = 3;
@@ -557,10 +776,11 @@ namespace shaxsiy {
 			// 
 			// hisobparol2
 			// 
+			this->hisobparol2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobparol2->Cursor = System::Windows::Forms::Cursors::IBeam;
 			this->hisobparol2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobparol2->Location = System::Drawing::Point(356, 425);
+			this->hisobparol2->Location = System::Drawing::Point(745, 534);
 			this->hisobparol2->Name = L"hisobparol2";
 			this->hisobparol2->Size = System::Drawing::Size(278, 31);
 			this->hisobparol2->TabIndex = 2;
@@ -569,10 +789,11 @@ namespace shaxsiy {
 			// 
 			// hisobparol1
 			// 
+			this->hisobparol1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobparol1->Cursor = System::Windows::Forms::Cursors::IBeam;
 			this->hisobparol1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobparol1->Location = System::Drawing::Point(54, 425);
+			this->hisobparol1->Location = System::Drawing::Point(443, 534);
 			this->hisobparol1->Name = L"hisobparol1";
 			this->hisobparol1->Size = System::Drawing::Size(278, 31);
 			this->hisobparol1->TabIndex = 2;
@@ -581,10 +802,11 @@ namespace shaxsiy {
 			// 
 			// hisoblogin2
 			// 
+			this->hisoblogin2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisoblogin2->Cursor = System::Windows::Forms::Cursors::IBeam;
 			this->hisoblogin2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisoblogin2->Location = System::Drawing::Point(356, 326);
+			this->hisoblogin2->Location = System::Drawing::Point(745, 435);
 			this->hisoblogin2->Name = L"hisoblogin2";
 			this->hisoblogin2->Size = System::Drawing::Size(278, 31);
 			this->hisoblogin2->TabIndex = 2;
@@ -593,10 +815,11 @@ namespace shaxsiy {
 			// 
 			// hisoblogin1
 			// 
+			this->hisoblogin1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisoblogin1->Cursor = System::Windows::Forms::Cursors::IBeam;
 			this->hisoblogin1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisoblogin1->Location = System::Drawing::Point(54, 326);
+			this->hisoblogin1->Location = System::Drawing::Point(443, 435);
 			this->hisoblogin1->Name = L"hisoblogin1";
 			this->hisoblogin1->Size = System::Drawing::Size(278, 31);
 			this->hisoblogin1->TabIndex = 2;
@@ -605,9 +828,10 @@ namespace shaxsiy {
 			// 
 			// hisobmanzil
 			// 
+			this->hisobmanzil->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobmanzil->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobmanzil->Location = System::Drawing::Point(413, 226);
+			this->hisobmanzil->Location = System::Drawing::Point(802, 335);
 			this->hisobmanzil->Name = L"hisobmanzil";
 			this->hisobmanzil->ReadOnly = true;
 			this->hisobmanzil->Size = System::Drawing::Size(278, 31);
@@ -615,9 +839,10 @@ namespace shaxsiy {
 			// 
 			// hisobjshshir
 			// 
+			this->hisobjshshir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobjshshir->Location = System::Drawing::Point(413, 179);
+			this->hisobjshshir->Location = System::Drawing::Point(802, 288);
 			this->hisobjshshir->Name = L"hisobjshshir";
 			this->hisobjshshir->ReadOnly = true;
 			this->hisobjshshir->Size = System::Drawing::Size(278, 31);
@@ -625,9 +850,10 @@ namespace shaxsiy {
 			// 
 			// hisobota
 			// 
+			this->hisobota->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobota->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobota->Location = System::Drawing::Point(413, 134);
+			this->hisobota->Location = System::Drawing::Point(802, 243);
 			this->hisobota->Name = L"hisobota";
 			this->hisobota->ReadOnly = true;
 			this->hisobota->Size = System::Drawing::Size(278, 31);
@@ -635,37 +861,21 @@ namespace shaxsiy {
 			// 
 			// hisobfamilya
 			// 
+			this->hisobfamilya->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobfamilya->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobfamilya->Location = System::Drawing::Point(413, 90);
+			this->hisobfamilya->Location = System::Drawing::Point(802, 199);
 			this->hisobfamilya->Name = L"hisobfamilya";
 			this->hisobfamilya->ReadOnly = true;
 			this->hisobfamilya->Size = System::Drawing::Size(278, 31);
 			this->hisobfamilya->TabIndex = 2;
 			// 
-			// textBox7
-			// 
-			this->textBox7->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
-				static_cast<System::Byte>(162)));
-			this->textBox7->Location = System::Drawing::Point(413, 90);
-			this->textBox7->Name = L"textBox7";
-			this->textBox7->Size = System::Drawing::Size(278, 31);
-			this->textBox7->TabIndex = 2;
-			// 
-			// textBox2
-			// 
-			this->textBox2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
-				static_cast<System::Byte>(162)));
-			this->textBox2->Location = System::Drawing::Point(413, 90);
-			this->textBox2->Name = L"textBox2";
-			this->textBox2->Size = System::Drawing::Size(278, 31);
-			this->textBox2->TabIndex = 2;
-			// 
 			// hisobism
 			// 
+			this->hisobism->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->hisobism->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->hisobism->Location = System::Drawing::Point(413, 48);
+			this->hisobism->Location = System::Drawing::Point(802, 157);
 			this->hisobism->Name = L"hisobism";
 			this->hisobism->ReadOnly = true;
 			this->hisobism->Size = System::Drawing::Size(278, 31);
@@ -673,12 +883,13 @@ namespace shaxsiy {
 			// 
 			// label7
 			// 
+			this->label7->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label7->AutoSize = true;
 			this->label7->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label7->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label7->Location = System::Drawing::Point(49, 380);
+			this->label7->Location = System::Drawing::Point(438, 489);
 			this->label7->Name = L"label7";
 			this->label7->Size = System::Drawing::Size(204, 25);
 			this->label7->TabIndex = 1;
@@ -686,12 +897,13 @@ namespace shaxsiy {
 			// 
 			// label6
 			// 
+			this->label6->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label6->AutoSize = true;
 			this->label6->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label6->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label6->Location = System::Drawing::Point(49, 280);
+			this->label6->Location = System::Drawing::Point(438, 389);
 			this->label6->Name = L"label6";
 			this->label6->Size = System::Drawing::Size(202, 25);
 			this->label6->TabIndex = 1;
@@ -699,12 +911,13 @@ namespace shaxsiy {
 			// 
 			// label5
 			// 
+			this->label5->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label5->AutoSize = true;
 			this->label5->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label5->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label5->Location = System::Drawing::Point(231, 229);
+			this->label5->Location = System::Drawing::Point(620, 338);
 			this->label5->Name = L"label5";
 			this->label5->Size = System::Drawing::Size(176, 25);
 			this->label5->TabIndex = 1;
@@ -712,12 +925,13 @@ namespace shaxsiy {
 			// 
 			// label4
 			// 
+			this->label4->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label4->AutoSize = true;
 			this->label4->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label4->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label4->Location = System::Drawing::Point(300, 182);
+			this->label4->Location = System::Drawing::Point(689, 291);
 			this->label4->Name = L"label4";
 			this->label4->Size = System::Drawing::Size(107, 25);
 			this->label4->TabIndex = 1;
@@ -725,12 +939,13 @@ namespace shaxsiy {
 			// 
 			// label3
 			// 
+			this->label3->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label3->AutoSize = true;
 			this->label3->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label3->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label3->Location = System::Drawing::Point(254, 137);
+			this->label3->Location = System::Drawing::Point(643, 246);
 			this->label3->Name = L"label3";
 			this->label3->Size = System::Drawing::Size(153, 25);
 			this->label3->TabIndex = 1;
@@ -738,12 +953,13 @@ namespace shaxsiy {
 			// 
 			// label2
 			// 
+			this->label2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label2->AutoSize = true;
 			this->label2->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label2->Location = System::Drawing::Point(298, 93);
+			this->label2->Location = System::Drawing::Point(687, 202);
 			this->label2->Name = L"label2";
 			this->label2->Size = System::Drawing::Size(109, 25);
 			this->label2->TabIndex = 1;
@@ -751,12 +967,13 @@ namespace shaxsiy {
 			// 
 			// label1
 			// 
+			this->label1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label1->AutoSize = true;
 			this->label1->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->label1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label1->Location = System::Drawing::Point(351, 51);
+			this->label1->Location = System::Drawing::Point(740, 160);
 			this->label1->Name = L"label1";
 			this->label1->Size = System::Drawing::Size(56, 25);
 			this->label1->TabIndex = 1;
@@ -764,10 +981,11 @@ namespace shaxsiy {
 			// 
 			// pictureBox1
 			// 
+			this->pictureBox1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->pictureBox1->BackColor = System::Drawing::SystemColors::GradientInactiveCaption;
-			this->pictureBox1->Location = System::Drawing::Point(54, 18);
+			this->pictureBox1->Location = System::Drawing::Point(443, 127);
 			this->pictureBox1->Name = L"pictureBox1";
-			this->pictureBox1->Size = System::Drawing::Size(168, 200);
+			this->pictureBox1->Size = System::Drawing::Size(168, 224);
 			this->pictureBox1->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
 			this->pictureBox1->TabIndex = 0;
 			this->pictureBox1->TabStop = false;
@@ -796,18 +1014,19 @@ namespace shaxsiy {
 			this->panelqoshish->Controls->Add(this->label10);
 			this->panelqoshish->Controls->Add(this->label9);
 			this->panelqoshish->Controls->Add(this->label8);
-			this->panelqoshish->Location = System::Drawing::Point(3, 72);
+			this->panelqoshish->Location = System::Drawing::Point(0, 75);
 			this->panelqoshish->Name = L"panelqoshish";
-			this->panelqoshish->Size = System::Drawing::Size(1034, 497);
+			this->panelqoshish->Size = System::Drawing::Size(1815, 712);
 			this->panelqoshish->TabIndex = 4;
 			// 
 			// rasmtanlash
 			// 
+			this->rasmtanlash->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->rasmtanlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->rasmtanlash->Location = System::Drawing::Point(72, 260);
+			this->rasmtanlash->Location = System::Drawing::Point(452, 374);
 			this->rasmtanlash->Name = L"rasmtanlash";
-			this->rasmtanlash->Size = System::Drawing::Size(189, 34);
+			this->rasmtanlash->Size = System::Drawing::Size(168, 34);
 			this->rasmtanlash->TabIndex = 4;
 			this->rasmtanlash->Text = L"Rasm tanlash:";
 			this->rasmtanlash->UseVisualStyleBackColor = true;
@@ -815,19 +1034,21 @@ namespace shaxsiy {
 			// 
 			// rasmqoshish
 			// 
+			this->rasmqoshish->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->rasmqoshish->BackColor = System::Drawing::SystemColors::GradientActiveCaption;
-			this->rasmqoshish->Location = System::Drawing::Point(72, 35);
+			this->rasmqoshish->Location = System::Drawing::Point(452, 149);
 			this->rasmqoshish->Name = L"rasmqoshish";
-			this->rasmqoshish->Size = System::Drawing::Size(189, 219);
+			this->rasmqoshish->Size = System::Drawing::Size(168, 224);
 			this->rasmqoshish->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
 			this->rasmqoshish->TabIndex = 3;
 			this->rasmqoshish->TabStop = false;
 			// 
 			// qoshishsaqlash
 			// 
+			this->qoshishsaqlash->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishsaqlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishsaqlash->Location = System::Drawing::Point(538, 363);
+			this->qoshishsaqlash->Location = System::Drawing::Point(968, 469);
 			this->qoshishsaqlash->Name = L"qoshishsaqlash";
 			this->qoshishsaqlash->Size = System::Drawing::Size(258, 34);
 			this->qoshishsaqlash->TabIndex = 2;
@@ -837,82 +1058,91 @@ namespace shaxsiy {
 			// 
 			// qoshishparol2
 			// 
+			this->qoshishparol2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishparol2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishparol2->Location = System::Drawing::Point(505, 313);
+			this->qoshishparol2->Location = System::Drawing::Point(885, 427);
 			this->qoshishparol2->Name = L"qoshishparol2";
 			this->qoshishparol2->Size = System::Drawing::Size(388, 31);
 			this->qoshishparol2->TabIndex = 1;
 			// 
 			// qoshishparol1
 			// 
+			this->qoshishparol1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishparol1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishparol1->Location = System::Drawing::Point(505, 276);
+			this->qoshishparol1->Location = System::Drawing::Point(885, 390);
 			this->qoshishparol1->Name = L"qoshishparol1";
 			this->qoshishparol1->Size = System::Drawing::Size(388, 31);
 			this->qoshishparol1->TabIndex = 1;
 			// 
 			// qoshishlogin
 			// 
+			this->qoshishlogin->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishlogin->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishlogin->Location = System::Drawing::Point(505, 239);
+			this->qoshishlogin->Location = System::Drawing::Point(885, 353);
 			this->qoshishlogin->Name = L"qoshishlogin";
 			this->qoshishlogin->Size = System::Drawing::Size(388, 31);
 			this->qoshishlogin->TabIndex = 1;
 			// 
 			// qoshishmanzil
 			// 
+			this->qoshishmanzil->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishmanzil->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishmanzil->Location = System::Drawing::Point(505, 202);
+			this->qoshishmanzil->Location = System::Drawing::Point(885, 316);
 			this->qoshishmanzil->Name = L"qoshishmanzil";
 			this->qoshishmanzil->Size = System::Drawing::Size(388, 31);
 			this->qoshishmanzil->TabIndex = 1;
 			// 
 			// qoshishjshshir
 			// 
+			this->qoshishjshshir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishjshshir->Location = System::Drawing::Point(505, 165);
+			this->qoshishjshshir->Location = System::Drawing::Point(885, 279);
 			this->qoshishjshshir->Name = L"qoshishjshshir";
 			this->qoshishjshshir->Size = System::Drawing::Size(388, 31);
 			this->qoshishjshshir->TabIndex = 1;
 			// 
 			// qoshishota
 			// 
+			this->qoshishota->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishota->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishota->Location = System::Drawing::Point(505, 128);
+			this->qoshishota->Location = System::Drawing::Point(885, 242);
 			this->qoshishota->Name = L"qoshishota";
 			this->qoshishota->Size = System::Drawing::Size(388, 31);
 			this->qoshishota->TabIndex = 1;
 			// 
 			// qoshishfamilya
 			// 
+			this->qoshishfamilya->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishfamilya->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishfamilya->Location = System::Drawing::Point(505, 91);
+			this->qoshishfamilya->Location = System::Drawing::Point(885, 205);
 			this->qoshishfamilya->Name = L"qoshishfamilya";
 			this->qoshishfamilya->Size = System::Drawing::Size(388, 31);
 			this->qoshishfamilya->TabIndex = 1;
 			// 
 			// qoshishism
 			// 
+			this->qoshishism->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->qoshishism->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qoshishism->Location = System::Drawing::Point(505, 54);
+			this->qoshishism->Location = System::Drawing::Point(885, 168);
 			this->qoshishism->Name = L"qoshishism";
 			this->qoshishism->Size = System::Drawing::Size(388, 31);
 			this->qoshishism->TabIndex = 1;
 			// 
 			// label15
 			// 
+			this->label15->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label15->AutoSize = true;
 			this->label15->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label15->Location = System::Drawing::Point(358, 316);
+			this->label15->Location = System::Drawing::Point(738, 430);
 			this->label15->Name = L"label15";
 			this->label15->Size = System::Drawing::Size(141, 25);
 			this->label15->TabIndex = 0;
@@ -920,10 +1150,11 @@ namespace shaxsiy {
 			// 
 			// label14
 			// 
+			this->label14->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label14->AutoSize = true;
 			this->label14->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label14->Location = System::Drawing::Point(425, 279);
+			this->label14->Location = System::Drawing::Point(805, 393);
 			this->label14->Name = L"label14";
 			this->label14->Size = System::Drawing::Size(74, 25);
 			this->label14->TabIndex = 0;
@@ -931,10 +1162,11 @@ namespace shaxsiy {
 			// 
 			// label13
 			// 
+			this->label13->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label13->AutoSize = true;
 			this->label13->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label13->Location = System::Drawing::Point(422, 242);
+			this->label13->Location = System::Drawing::Point(802, 356);
 			this->label13->Name = L"label13";
 			this->label13->Size = System::Drawing::Size(77, 25);
 			this->label13->TabIndex = 0;
@@ -942,10 +1174,11 @@ namespace shaxsiy {
 			// 
 			// label12
 			// 
+			this->label12->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label12->AutoSize = true;
 			this->label12->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label12->Location = System::Drawing::Point(307, 205);
+			this->label12->Location = System::Drawing::Point(687, 319);
 			this->label12->Name = L"label12";
 			this->label12->Size = System::Drawing::Size(192, 25);
 			this->label12->TabIndex = 0;
@@ -953,10 +1186,11 @@ namespace shaxsiy {
 			// 
 			// label11
 			// 
+			this->label11->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label11->AutoSize = true;
 			this->label11->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label11->Location = System::Drawing::Point(384, 168);
+			this->label11->Location = System::Drawing::Point(764, 282);
 			this->label11->Name = L"label11";
 			this->label11->Size = System::Drawing::Size(115, 25);
 			this->label11->TabIndex = 0;
@@ -964,10 +1198,11 @@ namespace shaxsiy {
 			// 
 			// label10
 			// 
+			this->label10->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label10->AutoSize = true;
 			this->label10->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label10->Location = System::Drawing::Point(331, 131);
+			this->label10->Location = System::Drawing::Point(711, 245);
 			this->label10->Name = L"label10";
 			this->label10->Size = System::Drawing::Size(168, 25);
 			this->label10->TabIndex = 0;
@@ -975,10 +1210,11 @@ namespace shaxsiy {
 			// 
 			// label9
 			// 
+			this->label9->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label9->AutoSize = true;
 			this->label9->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label9->Location = System::Drawing::Point(398, 94);
+			this->label9->Location = System::Drawing::Point(778, 208);
 			this->label9->Name = L"label9";
 			this->label9->Size = System::Drawing::Size(101, 25);
 			this->label9->TabIndex = 0;
@@ -986,10 +1222,11 @@ namespace shaxsiy {
 			// 
 			// label8
 			// 
+			this->label8->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label8->AutoSize = true;
 			this->label8->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label8->Location = System::Drawing::Point(444, 57);
+			this->label8->Location = System::Drawing::Point(824, 171);
 			this->label8->Name = L"label8";
 			this->label8->Size = System::Drawing::Size(55, 25);
 			this->label8->TabIndex = 0;
@@ -1025,26 +1262,28 @@ namespace shaxsiy {
 			this->panelmalumot->Controls->Add(this->jshshirizlash);
 			this->panelmalumot->Controls->Add(this->label16);
 			this->panelmalumot->Cursor = System::Windows::Forms::Cursors::Hand;
-			this->panelmalumot->Location = System::Drawing::Point(0, 75);
+			this->panelmalumot->Location = System::Drawing::Point(0, 72);
 			this->panelmalumot->Name = L"panelmalumot";
-			this->panelmalumot->Size = System::Drawing::Size(1037, 494);
+			this->panelmalumot->Size = System::Drawing::Size(1815, 712);
 			this->panelmalumot->TabIndex = 5;
 			// 
 			// pictureBox2
 			// 
+			this->pictureBox2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->pictureBox2->BackColor = System::Drawing::SystemColors::GradientActiveCaption;
-			this->pictureBox2->Location = System::Drawing::Point(99, 118);
+			this->pictureBox2->Location = System::Drawing::Point(537, 225);
 			this->pictureBox2->Name = L"pictureBox2";
-			this->pictureBox2->Size = System::Drawing::Size(165, 199);
+			this->pictureBox2->Size = System::Drawing::Size(168, 224);
 			this->pictureBox2->TabIndex = 20;
 			this->pictureBox2->TabStop = false;
 			// 
 			// checkBox1
 			// 
+			this->checkBox1->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->checkBox1->AutoSize = true;
 			this->checkBox1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->checkBox1->Location = System::Drawing::Point(902, 313);
+			this->checkBox1->Location = System::Drawing::Point(1327, 457);
 			this->checkBox1->Name = L"checkBox1";
 			this->checkBox1->Size = System::Drawing::Size(15, 14);
 			this->checkBox1->TabIndex = 19;
@@ -1052,9 +1291,10 @@ namespace shaxsiy {
 			// 
 			// malumotparol
 			// 
+			this->malumotparol->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotparol->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotparol->Location = System::Drawing::Point(508, 303);
+			this->malumotparol->Location = System::Drawing::Point(933, 447);
 			this->malumotparol->Name = L"malumotparol";
 			this->malumotparol->PasswordChar = '*';
 			this->malumotparol->ReadOnly = true;
@@ -1063,9 +1303,10 @@ namespace shaxsiy {
 			// 
 			// malumotlogin
 			// 
+			this->malumotlogin->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotlogin->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotlogin->Location = System::Drawing::Point(508, 266);
+			this->malumotlogin->Location = System::Drawing::Point(933, 410);
 			this->malumotlogin->Name = L"malumotlogin";
 			this->malumotlogin->ReadOnly = true;
 			this->malumotlogin->Size = System::Drawing::Size(388, 31);
@@ -1073,9 +1314,10 @@ namespace shaxsiy {
 			// 
 			// malumotmanzil
 			// 
+			this->malumotmanzil->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotmanzil->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotmanzil->Location = System::Drawing::Point(508, 229);
+			this->malumotmanzil->Location = System::Drawing::Point(933, 373);
 			this->malumotmanzil->Name = L"malumotmanzil";
 			this->malumotmanzil->ReadOnly = true;
 			this->malumotmanzil->Size = System::Drawing::Size(388, 31);
@@ -1083,9 +1325,10 @@ namespace shaxsiy {
 			// 
 			// malumotjshshir
 			// 
+			this->malumotjshshir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotjshshir->Location = System::Drawing::Point(508, 192);
+			this->malumotjshshir->Location = System::Drawing::Point(933, 336);
 			this->malumotjshshir->Name = L"malumotjshshir";
 			this->malumotjshshir->ReadOnly = true;
 			this->malumotjshshir->Size = System::Drawing::Size(388, 31);
@@ -1093,9 +1336,10 @@ namespace shaxsiy {
 			// 
 			// malumotota
 			// 
+			this->malumotota->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotota->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotota->Location = System::Drawing::Point(508, 155);
+			this->malumotota->Location = System::Drawing::Point(933, 299);
 			this->malumotota->Name = L"malumotota";
 			this->malumotota->ReadOnly = true;
 			this->malumotota->Size = System::Drawing::Size(388, 31);
@@ -1103,9 +1347,10 @@ namespace shaxsiy {
 			// 
 			// malumotfamilya
 			// 
+			this->malumotfamilya->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotfamilya->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotfamilya->Location = System::Drawing::Point(508, 118);
+			this->malumotfamilya->Location = System::Drawing::Point(933, 262);
 			this->malumotfamilya->Name = L"malumotfamilya";
 			this->malumotfamilya->ReadOnly = true;
 			this->malumotfamilya->Size = System::Drawing::Size(388, 31);
@@ -1113,9 +1358,10 @@ namespace shaxsiy {
 			// 
 			// malumotism
 			// 
+			this->malumotism->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotism->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotism->Location = System::Drawing::Point(508, 81);
+			this->malumotism->Location = System::Drawing::Point(933, 225);
 			this->malumotism->Name = L"malumotism";
 			this->malumotism->ReadOnly = true;
 			this->malumotism->Size = System::Drawing::Size(388, 31);
@@ -1123,10 +1369,11 @@ namespace shaxsiy {
 			// 
 			// label18
 			// 
+			this->label18->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label18->AutoSize = true;
 			this->label18->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label18->Location = System::Drawing::Point(428, 306);
+			this->label18->Location = System::Drawing::Point(853, 450);
 			this->label18->Name = L"label18";
 			this->label18->Size = System::Drawing::Size(74, 25);
 			this->label18->TabIndex = 4;
@@ -1134,10 +1381,11 @@ namespace shaxsiy {
 			// 
 			// label19
 			// 
+			this->label19->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label19->AutoSize = true;
 			this->label19->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label19->Location = System::Drawing::Point(425, 269);
+			this->label19->Location = System::Drawing::Point(850, 413);
 			this->label19->Name = L"label19";
 			this->label19->Size = System::Drawing::Size(77, 25);
 			this->label19->TabIndex = 5;
@@ -1145,10 +1393,11 @@ namespace shaxsiy {
 			// 
 			// label20
 			// 
+			this->label20->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label20->AutoSize = true;
 			this->label20->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label20->Location = System::Drawing::Point(310, 232);
+			this->label20->Location = System::Drawing::Point(735, 376);
 			this->label20->Name = L"label20";
 			this->label20->Size = System::Drawing::Size(192, 25);
 			this->label20->TabIndex = 6;
@@ -1156,10 +1405,11 @@ namespace shaxsiy {
 			// 
 			// label21
 			// 
+			this->label21->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label21->AutoSize = true;
 			this->label21->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label21->Location = System::Drawing::Point(387, 195);
+			this->label21->Location = System::Drawing::Point(812, 339);
 			this->label21->Name = L"label21";
 			this->label21->Size = System::Drawing::Size(115, 25);
 			this->label21->TabIndex = 7;
@@ -1167,10 +1417,11 @@ namespace shaxsiy {
 			// 
 			// label22
 			// 
+			this->label22->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label22->AutoSize = true;
 			this->label22->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label22->Location = System::Drawing::Point(334, 158);
+			this->label22->Location = System::Drawing::Point(759, 302);
 			this->label22->Name = L"label22";
 			this->label22->Size = System::Drawing::Size(168, 25);
 			this->label22->TabIndex = 8;
@@ -1178,10 +1429,11 @@ namespace shaxsiy {
 			// 
 			// label23
 			// 
+			this->label23->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label23->AutoSize = true;
 			this->label23->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label23->Location = System::Drawing::Point(401, 121);
+			this->label23->Location = System::Drawing::Point(826, 265);
 			this->label23->Name = L"label23";
 			this->label23->Size = System::Drawing::Size(101, 25);
 			this->label23->TabIndex = 9;
@@ -1189,10 +1441,11 @@ namespace shaxsiy {
 			// 
 			// label24
 			// 
+			this->label24->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label24->AutoSize = true;
 			this->label24->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label24->Location = System::Drawing::Point(447, 84);
+			this->label24->Location = System::Drawing::Point(872, 228);
 			this->label24->Name = L"label24";
 			this->label24->Size = System::Drawing::Size(55, 25);
 			this->label24->TabIndex = 10;
@@ -1200,10 +1453,11 @@ namespace shaxsiy {
 			// 
 			// tahrir
 			// 
+			this->tahrir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->tahrir->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->tahrir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrir->Location = System::Drawing::Point(783, 347);
+			this->tahrir->Location = System::Drawing::Point(1208, 491);
 			this->tahrir->Name = L"tahrir";
 			this->tahrir->Size = System::Drawing::Size(111, 31);
 			this->tahrir->TabIndex = 2;
@@ -1213,10 +1467,11 @@ namespace shaxsiy {
 			// 
 			// malumotizlash
 			// 
+			this->malumotizlash->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->malumotizlash->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->malumotizlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->malumotizlash->Location = System::Drawing::Point(783, 29);
+			this->malumotizlash->Location = System::Drawing::Point(1208, 173);
 			this->malumotizlash->Name = L"malumotizlash";
 			this->malumotizlash->Size = System::Drawing::Size(111, 31);
 			this->malumotizlash->TabIndex = 2;
@@ -1226,19 +1481,21 @@ namespace shaxsiy {
 			// 
 			// jshshirizlash
 			// 
+			this->jshshirizlash->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->jshshirizlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->jshshirizlash->Location = System::Drawing::Point(257, 29);
+			this->jshshirizlash->Location = System::Drawing::Point(682, 173);
 			this->jshshirizlash->Name = L"jshshirizlash";
 			this->jshshirizlash->Size = System::Drawing::Size(497, 31);
 			this->jshshirizlash->TabIndex = 1;
 			// 
 			// label16
 			// 
+			this->label16->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label16->AutoSize = true;
 			this->label16->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label16->Location = System::Drawing::Point(136, 32);
+			this->label16->Location = System::Drawing::Point(561, 176);
 			this->label16->Name = L"label16";
 			this->label16->Size = System::Drawing::Size(115, 25);
 			this->label16->TabIndex = 0;
@@ -1262,17 +1519,18 @@ namespace shaxsiy {
 			this->paneltahrir->Controls->Add(this->label27);
 			this->paneltahrir->Controls->Add(this->label28);
 			this->paneltahrir->Controls->Add(this->label29);
-			this->paneltahrir->Location = System::Drawing::Point(3, 72);
+			this->paneltahrir->Location = System::Drawing::Point(0, 72);
 			this->paneltahrir->Name = L"paneltahrir";
-			this->paneltahrir->Size = System::Drawing::Size(1034, 497);
+			this->paneltahrir->Size = System::Drawing::Size(1815, 712);
 			this->paneltahrir->TabIndex = 19;
 			// 
 			// saqlash
 			// 
+			this->saqlash->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->saqlash->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->saqlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->saqlash->Location = System::Drawing::Point(702, 326);
+			this->saqlash->Location = System::Drawing::Point(1082, 440);
 			this->saqlash->Name = L"saqlash";
 			this->saqlash->Size = System::Drawing::Size(189, 34);
 			this->saqlash->TabIndex = 30;
@@ -1282,10 +1540,11 @@ namespace shaxsiy {
 			// 
 			// rasmtanlashtaxrir
 			// 
+			this->rasmtanlashtaxrir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->rasmtanlashtaxrir->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->rasmtanlashtaxrir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold,
 				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
-			this->rasmtanlashtaxrir->Location = System::Drawing::Point(72, 256);
+			this->rasmtanlashtaxrir->Location = System::Drawing::Point(452, 370);
 			this->rasmtanlashtaxrir->Name = L"rasmtanlashtaxrir";
 			this->rasmtanlashtaxrir->Size = System::Drawing::Size(189, 34);
 			this->rasmtanlashtaxrir->TabIndex = 30;
@@ -1295,8 +1554,9 @@ namespace shaxsiy {
 			// 
 			// rasmtahrir
 			// 
+			this->rasmtahrir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->rasmtahrir->BackColor = System::Drawing::SystemColors::GradientActiveCaption;
-			this->rasmtahrir->Location = System::Drawing::Point(72, 31);
+			this->rasmtahrir->Location = System::Drawing::Point(452, 145);
 			this->rasmtahrir->Name = L"rasmtahrir";
 			this->rasmtahrir->Size = System::Drawing::Size(189, 219);
 			this->rasmtahrir->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
@@ -1305,55 +1565,61 @@ namespace shaxsiy {
 			// 
 			// tahrirmanzil
 			// 
+			this->tahrirmanzil->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->tahrirmanzil->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrirmanzil->Location = System::Drawing::Point(556, 222);
+			this->tahrirmanzil->Location = System::Drawing::Point(936, 336);
 			this->tahrirmanzil->Name = L"tahrirmanzil";
 			this->tahrirmanzil->Size = System::Drawing::Size(388, 31);
 			this->tahrirmanzil->TabIndex = 24;
 			// 
 			// tahrirjshshir
 			// 
+			this->tahrirjshshir->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->tahrirjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrirjshshir->Location = System::Drawing::Point(556, 185);
+			this->tahrirjshshir->Location = System::Drawing::Point(936, 299);
 			this->tahrirjshshir->Name = L"tahrirjshshir";
 			this->tahrirjshshir->Size = System::Drawing::Size(388, 31);
 			this->tahrirjshshir->TabIndex = 25;
 			// 
 			// tahrirota
 			// 
+			this->tahrirota->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->tahrirota->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrirota->Location = System::Drawing::Point(556, 148);
+			this->tahrirota->Location = System::Drawing::Point(936, 262);
 			this->tahrirota->Name = L"tahrirota";
 			this->tahrirota->Size = System::Drawing::Size(388, 31);
 			this->tahrirota->TabIndex = 26;
 			// 
 			// tahrirfamilya
 			// 
+			this->tahrirfamilya->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->tahrirfamilya->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrirfamilya->Location = System::Drawing::Point(556, 111);
+			this->tahrirfamilya->Location = System::Drawing::Point(936, 225);
 			this->tahrirfamilya->Name = L"tahrirfamilya";
 			this->tahrirfamilya->Size = System::Drawing::Size(388, 31);
 			this->tahrirfamilya->TabIndex = 27;
 			// 
 			// tahrirism
 			// 
+			this->tahrirism->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->tahrirism->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrirism->Location = System::Drawing::Point(556, 74);
+			this->tahrirism->Location = System::Drawing::Point(936, 188);
 			this->tahrirism->Name = L"tahrirism";
 			this->tahrirism->Size = System::Drawing::Size(388, 31);
 			this->tahrirism->TabIndex = 28;
 			// 
 			// label25
 			// 
+			this->label25->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label25->AutoSize = true;
 			this->label25->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label25->Location = System::Drawing::Point(358, 225);
+			this->label25->Location = System::Drawing::Point(738, 339);
 			this->label25->Name = L"label25";
 			this->label25->Size = System::Drawing::Size(192, 25);
 			this->label25->TabIndex = 19;
@@ -1361,10 +1627,11 @@ namespace shaxsiy {
 			// 
 			// label26
 			// 
+			this->label26->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label26->AutoSize = true;
 			this->label26->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label26->Location = System::Drawing::Point(435, 188);
+			this->label26->Location = System::Drawing::Point(815, 302);
 			this->label26->Name = L"label26";
 			this->label26->Size = System::Drawing::Size(115, 25);
 			this->label26->TabIndex = 20;
@@ -1372,10 +1639,11 @@ namespace shaxsiy {
 			// 
 			// label27
 			// 
+			this->label27->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label27->AutoSize = true;
 			this->label27->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label27->Location = System::Drawing::Point(382, 151);
+			this->label27->Location = System::Drawing::Point(762, 265);
 			this->label27->Name = L"label27";
 			this->label27->Size = System::Drawing::Size(168, 25);
 			this->label27->TabIndex = 21;
@@ -1383,10 +1651,11 @@ namespace shaxsiy {
 			// 
 			// label28
 			// 
+			this->label28->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label28->AutoSize = true;
 			this->label28->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label28->Location = System::Drawing::Point(449, 114);
+			this->label28->Location = System::Drawing::Point(829, 228);
 			this->label28->Name = L"label28";
 			this->label28->Size = System::Drawing::Size(101, 25);
 			this->label28->TabIndex = 22;
@@ -1394,10 +1663,11 @@ namespace shaxsiy {
 			// 
 			// label29
 			// 
+			this->label29->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->label29->AutoSize = true;
 			this->label29->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->label29->Location = System::Drawing::Point(495, 77);
+			this->label29->Location = System::Drawing::Point(875, 191);
 			this->label29->Name = L"label29";
 			this->label29->Size = System::Drawing::Size(55, 25);
 			this->label29->TabIndex = 23;
@@ -1408,18 +1678,18 @@ namespace shaxsiy {
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
 			this->BackColor = System::Drawing::SystemColors::ActiveCaption;
-			this->ClientSize = System::Drawing::Size(1041, 569);
+			this->ClientSize = System::Drawing::Size(1819, 787);
 			this->Controls->Add(this->menu);
 			this->Controls->Add(this->panel1);
 			this->Controls->Add(this->panel2);
-			this->Controls->Add(this->paneltahrir);
 			this->Controls->Add(this->panelmalumot);
 			this->Controls->Add(this->panelqoshish);
 			this->Controls->Add(this->panelasosiy);
 			this->Controls->Add(this->panelhisob);
+			this->Controls->Add(this->paneltahrir);
 			this->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"$this.Icon")));
 			this->Name = L"Forma4";
-			this->Text = L"Bosh sahifa";
+			this->Text = L"e";
 			this->Load += gcnew System::EventHandler(this, &Forma4::Forma4_Load);
 			this->panel1->ResumeLayout(false);
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->asosiypicture))->EndInit();
@@ -1443,337 +1713,378 @@ namespace shaxsiy {
 
 		}
 #pragma endregion
-		private: System::Void Forma4_Load(System::Object^ sender, System::EventArgs^ e) {
-			menu->Size = System::Drawing::Size(48,48);
-			menu->Text = "";
-			paneltahrir->Visible = false;
-			panelmalumot->Visible = false;
-			panel1->Visible = false;
-			panelasosiy->Visible = false;
-			panelhisob->Visible = false;
-			panelqoshish->Visible = false;
-	hisoblogin1->Text = L"	Joriy login";
-	hisoblogin1->ForeColor = System::Drawing::Color::Gray;
-	hisoblogin2->Text = L"	Yangi login";
-	hisoblogin2->ForeColor = System::Drawing::Color::Gray;
-	hisobparol1->Text = L"	Joriy parol";
-	hisobparol1->ForeColor = System::Drawing::Color::Gray;
-	hisobparol2->Text = L"	Yangi parol";
-	hisobparol2->ForeColor = System::Drawing::Color::Gray;
-		
+	private: System::Void Forma4_Load(System::Object^ sender, System::EventArgs^ e) {
+		menu->Size = System::Drawing::Size(48, 48);
+		menu->Text = "";
+		paneltahrir->Visible = false;
+		panelmalumot->Visible = false;
+		panel1->Visible = false;
+		panelasosiy->Visible = false;
+		panelhisob->Visible = false;
+		panelqoshish->Visible = false;
+	}
+	private: void video_NewFrame(System::Object^ sender, NewFrameEventArgs^ eventArgs)
+	{
+		System::Drawing::Bitmap^ frame = safe_cast<System::Drawing::Bitmap^>(eventArgs->Frame->Clone());
+		if (this->asosiypicture->InvokeRequired) {
+			this->asosiypicture->BeginInvoke(gcnew System::Action<System::Drawing::Bitmap^>(this, &Forma4::SetNewImage), frame);
 		}
-  private: void video_NewFrame(System::Object^ sender, NewFrameEventArgs^ eventArgs)
-		{
-			System::Drawing::Bitmap^ frame = safe_cast<System::Drawing::Bitmap^>(eventArgs->Frame->Clone());
-			if (this->asosiypicture->InvokeRequired) {
-          this->asosiypicture->BeginInvoke(gcnew System::Action<System::Drawing::Bitmap^>(this, &Forma4::SetNewImage), frame);
-			}
-			else {
-				SetNewImage(frame);
-			}
+		else {
+			SetNewImage(frame);
 		}
+	}
 
 	private: void SetNewImage(System::Drawing::Bitmap^ bmp)
 	{
 		if (this->asosiypicture->Image != nullptr) {
-			try { delete this->asosiypicture->Image; } catch(...) {}
+			try { delete this->asosiypicture->Image; }
+			catch (...) {}
 		}
 		this->asosiypicture->Image = bmp;
 	}
-		private: System::Void menu_Click(System::Object^ sender, System::EventArgs^ e) {
-			if (panel1->Visible == false)
-			{
-				menu->Text = L"   Menu";
-				menu->Size = System::Drawing::Size(197, 49);
-				panel1->Visible = true;
-				
-			}
-			else
-			{
-				menu->Size = System::Drawing::Size(48, 48);
-				menu->Text = "";
-				panel1->Visible = false;
-			}
+	private: System::Void menu_Click(System::Object^ sender, System::EventArgs^ e) {
+		if (panel1->Visible == false)
+		{
+			menu->Text = L"   Menu";
+			menu->Size = System::Drawing::Size(197, 49);
+			panel1->Visible = true;
+
 		}
-		private: System::Void bosh_Click(System::Object^ sender, System::EventArgs^ e) {
+		else
+		{
 			menu->Size = System::Drawing::Size(48, 48);
 			menu->Text = "";
-			if (paneltahrir->Visible == true) paneltahrir->Visible = false;
-			if (panelmalumot->Visible == true) panelmalumot->Visible = false;
-			if (panel1->Visible == true) panel1->Visible = false;
-			if (panelhisob->Visible == true) panelhisob->Visible = false;
-			panelasosiy->Visible = true;
-			if (panelqoshish->Visible == true) panelqoshish->Visible = false;
-			boshlabel->Text = L"Asosiy";
-			try {
-				videoDevices = gcnew FilterInfoCollection(FilterCategory::VideoInputDevice);
-				if (videoDevices != nullptr && videoDevices->Count > 0) {
-					videoSource = gcnew VideoCaptureDevice(videoDevices[0]->MonikerString);
-					videoSource->NewFrame += gcnew NewFrameEventHandler(this, &Forma4::video_NewFrame);
-					videoSource->Start();
-				}
-				else {
-					this->asosiytext->AppendText("No video devices found." + Environment::NewLine);
-				}
-			}
-			catch (Exception^ ex) {
-				this->asosiytext->AppendText("Camera error: " + ex->Message + Environment::NewLine);
+			panel1->Visible = false;
+		}
+	}
+	private: System::Void menu_MouseEnter(System::Object^ sender, System::EventArgs^ e)
+	{
+		this->menu->Text = L"   Menu";
+		this->menu->Size = System::Drawing::Size(197, 49);
+		this->panel1->Visible = true;
+	}
+	private: System::Void bosh_Click(System::Object^ sender, System::EventArgs^ e) {
+		menu->Size = System::Drawing::Size(48, 48);
+		menu->Text = "";
+		if (paneltahrir->Visible)  paneltahrir->Visible = false;
+		if (panelmalumot->Visible) panelmalumot->Visible = false;
+		if (panel1->Visible)       panel1->Visible = false;
+		if (panelhisob->Visible)   panelhisob->Visible = false;
+		panelasosiy->Visible = true;
+		if (panelqoshish->Visible) panelqoshish->Visible = false;
+		boshlabel->Text = L"Asosiy";
+
+		// ── Kamera ishga tushirish (mavjud kod) ──
+		try {
+			videoDevices = gcnew FilterInfoCollection(FilterCategory::VideoInputDevice);
+			if (videoDevices != nullptr && videoDevices->Count > 0) {
+				videoSource = gcnew VideoCaptureDevice(videoDevices[0]->MonikerString);
+				videoSource->NewFrame += gcnew NewFrameEventHandler(
+					this, &Forma4::video_NewFrame);
+				videoSource->Start();
 			}
 		}
+		catch (Exception^ ex) {
+			this->asosiytext->AppendText("Kamera xato: " + ex->Message + "\r\n");
+		}
+
+		// ── YANGI: Python serverga ulanish va timerni boshlash ──
+		this->asosiytext->Clear();
+		if (!m_connected) {
+			if (SocketUlan()) {
+				this->asosiytext->AppendText("Python server bilan ulandi\r\n");
+			}
+			else {
+				this->asosiytext->AppendText("Python server topilmadi!\r\n"
+					"   face_server.py ni ishga tushiring.\r\n");
+				return;
+			}
+		}
+
+		// Timer sozlash
+		if (m_timer == nullptr) {
+			m_timer = gcnew System::Windows::Forms::Timer();
+			m_timer->Interval = 3000;  // 3 soniya
+			m_timer->Tick += gcnew System::EventHandler(this, &Forma4::TimerTick);
+		}
+		m_tanishAktiv = true;
+		m_timer->Start();
+	}
 	private: System::Void chiqish_Click(System::Object^ sender, System::EventArgs^ e) {
-		if (this->Forma1 != nullptr) {
-			this->Close();
-			this->Forma1->Show();
+		// Timer va socketni to'xtatish
+		if (m_timer != nullptr && m_timer->Enabled) m_timer->Stop();
+		m_tanishAktiv = false;
+		SocketYop();
 
-			if (videoSource != nullptr && videoSource->IsRunning)
-			{
-				videoSource->Stop();
-			}
-		}
+		if (videoSource != nullptr && videoSource->IsRunning) videoSource->Stop();
+
+
+		this->Close();
+		this->Forma1->StartPosition = FormStartPosition::Manual;
+		this->Forma1->Location = this->Location;
+		this->Forma1->Size = this->Size;
+		this->Forma1->Show();
+
 	}
 
-private: System::Void hisob_Click(System::Object^ sender, System::EventArgs^ e) {
-	panelhisob->Visible = true;
-	if (paneltahrir->Visible == true) paneltahrir->Visible = false;
-	if (panelmalumot->Visible == true) panelmalumot->Visible = false;
-	if (panelasosiy->Visible == true) panelasosiy->Visible = false;
-	if (panelqoshish->Visible == true) panelqoshish->Visible = false;
-	boshlabel->Text = L"Hisob";
-	menu->Text = L"   Menu";
-	menu->Size = System::Drawing::Size(197, 49);
-	panel1->Visible = true;
-	if (videoSource != nullptr && videoSource->IsRunning)
-	{
-		videoSource->Stop();
-	}
-}
-private: System::Void rasmtanlash_Click(System::Object^ sender, System::EventArgs^ e) {
-	OpenFileDialog^ open = gcnew OpenFileDialog();
-
-	open->Filter = "Image Files|*.jpg;*.png;*.jpeg";
-
-	if (open->ShowDialog() == System::Windows::Forms::DialogResult::OK)
-	{
-		rasmqoshish->Image = Image::FromFile(open->FileName);
-	}
-}
-private: System::Void qoshish_Click(System::Object^ sender, System::EventArgs^ e) {
-	menu->Size = System::Drawing::Size(48, 48);
-	menu->Text = "";
-	if (paneltahrir->Visible == true) paneltahrir->Visible = false;
-	if (panelmalumot->Visible == true) panelmalumot->Visible = false;
-	if (panel1->Visible == true) panel1->Visible = false;
-	if (panelhisob->Visible == true) panelhisob->Visible = false;
-	if (panelasosiy->Visible == true) panelasosiy->Visible = false;
-	panelqoshish->Visible = true;
-	boshlabel->Text = L"Qo\'shish";
-	if (videoSource != nullptr && videoSource->IsRunning)
-	{
-		videoSource->Stop();
-	}
-}
-private: System::Void malumot_Click(System::Object^ sender, System::EventArgs^ e) {
-	menu->Size = System::Drawing::Size(48, 48);
-	menu->Text = "";
-	panelmalumot->Visible = true;
-	if (paneltahrir->Visible == true) paneltahrir->Visible = false;
-	if (panel1->Visible == true) panel1->Visible = false;
-	if (panelhisob->Visible == true) panelhisob->Visible = false;
-	if (panelasosiy->Visible == true) panelasosiy->Visible = false;
-	if(panelqoshish->Visible == true) panelqoshish->Visible=false;
-	boshlabel->Text = L"Qo\'shish";
-	if (videoSource != nullptr && videoSource->IsRunning)
-	{
-		videoSource->Stop();
-	}
-}
-private: System::Void rasmtanlashtaxrir_Click(System::Object^ sender, System::EventArgs^ e) {
-	OpenFileDialog^ open = gcnew OpenFileDialog();
-
-	open->Filter = "Image Files|*.jpg;*.png;*.jpeg";
-
-	if (open->ShowDialog() == System::Windows::Forms::DialogResult::OK)
-	{
-		rasmtahrir->Image = Image::FromFile(open->FileName);
-	}
-}
-private: System::Void tahrir_Click(System::Object^ sender, System::EventArgs^ e) {
-	menu->Size = System::Drawing::Size(48, 48);
-	menu->Text = "";
-	paneltahrir->Visible = true;
-	if (panelmalumot->Visible == true) panelmalumot->Visible = false;
-	if (panel1->Visible == true) panel1->Visible = false;
-	if (panelhisob->Visible == true) panelhisob->Visible = false;
-	if (panelasosiy->Visible == true) panelasosiy->Visible = false;
-	if (panelqoshish->Visible == true) panelqoshish->Visible = false;
-	boshlabel->Text = L"Qo\'shish";
-	if (videoSource != nullptr && videoSource->IsRunning)
-	{
-		videoSource->Stop();
-	}
-}
-private: System::Void button1_Click(System::Object^ sender, System::EventArgs^ e) {
-	hisoblogin1->Text = L"	Joriy login";
-	hisoblogin1->ForeColor = System::Drawing::Color::Gray;
-	hisoblogin2->Text = L"	Yangi login";
-	hisoblogin2->ForeColor = System::Drawing::Color::Gray;
-}
-private: System::Void button2_Click(System::Object^ sender, System::EventArgs^ e) {
-	hisobparol1->Text = L"	Joriy parol";
-	hisobparol1->ForeColor = System::Drawing::Color::Gray;
-	hisobparol2->Text = L"	Yangi parol";
-	hisobparol2->ForeColor = System::Drawing::Color::Gray;
-}
-private: System::Void saqlash_Click(System::Object^ sender, System::EventArgs^ e) {
-	tahrirism->Clear();
-	tahrirfamilya->Clear();
-	tahrirota->Clear();
-	tahrirmanzil->Clear();
-	tahrirjshshir->Clear();
-}
-private: System::Void qoshishsaqlash_Click(System::Object^ sender, System::EventArgs^ e) {
-	try {
-		SqlConnection^ ulanish = gcnew SqlConnection(connString);
-		ulanish->Open();
-		String^ query = "INSERT INTO hisob (login, parol, ism, otasining_ismi, familiya, jshshir, manzil) " +
-			"VALUES (@login, @parol, @ism, @otasining_ismi, @fam, @jsh, @manzil)";
-
-		SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
-		buyruq->Parameters->AddWithValue("@login", qoshishlogin->Text);
-		buyruq->Parameters->AddWithValue("@parol", qoshishparol1->Text);
-		buyruq->Parameters->AddWithValue("@ism", qoshishism->Text);
-		buyruq->Parameters->AddWithValue("@otasining_ismi", qoshishota->Text);
-		buyruq->Parameters->AddWithValue("@fam", qoshishfamilya->Text);
-		buyruq->Parameters->AddWithValue("@jsh", qoshishjshshir->Text);
-		buyruq->Parameters->AddWithValue("@manzil", qoshishmanzil->Text);
-
-		buyruq->ExecuteNonQuery();
-		ulanish->Close();
-
-		MessageBox::Show("Ma'lumotlar saqlandi!");
-	}
-	catch (SqlException^ ex) {
-		if (ex->Number == 2627) {
-			MessageBox::Show("Xato: Bunday Login yoki JShShIR allaqachon mavjud!");
-		}
-		else {
-			MessageBox::Show("Tizim xatosi: " + ex->Message);
-		}
-	}
-	qoshishism->Clear();
-	qoshishfamilya->Clear();
-	qoshishota->Clear();
-	qoshishjshshir->Clear();
-	qoshishlogin->Clear();
-	qoshishmanzil->Clear();
-	qoshishparol1->Clear();
-	qoshishparol2->Clear();
-	rasmqoshish->Image = nullptr;
-}
-private: System::Void hisoblogin1_Enter(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisoblogin1->ForeColor == System::Drawing::Color::Gray) {
-		hisoblogin1->Text = L"";
-		hisoblogin1->ForeColor = System::Drawing::Color::Black;
-	}
-	hisoblogin1->SelectAll();
-}
-private: System::Void hisoblogin2_Enter(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisoblogin2->ForeColor == System::Drawing::Color::Gray) {
-		hisoblogin2->Text = L"";
-		hisoblogin2->ForeColor = System::Drawing::Color::Black;
-	}
-	hisoblogin2->SelectAll();
-}
-private: System::Void hisobparol1_Enter(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisobparol1->ForeColor == System::Drawing::Color::Gray) {
-		hisobparol1->Text = L"";
-		hisobparol1->ForeColor = System::Drawing::Color::Black;
-	}
-	hisobparol1->SelectAll();
-}
-private: System::Void hisobparol2_Enter(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisobparol2->ForeColor == System::Drawing::Color::Gray) {
-		hisobparol2->Text = L"";
-		hisobparol2->ForeColor = System::Drawing::Color::Black;
-	}
-	hisobparol2->SelectAll();
-}
-private: System::Void hisoblogin1_Leave(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisoblogin1->Text->Trim() == L"") {
+	private: System::Void hisob_Click(System::Object^ sender, System::EventArgs^ e) {
 		hisoblogin1->Text = L"	Joriy login";
 		hisoblogin1->ForeColor = System::Drawing::Color::Gray;
+		hisoblogin2->Text = L"	Yangi login";
+		hisoblogin2->ForeColor = System::Drawing::Color::Gray;
+		hisobparol1->Text = L"	Joriy parol";
+		hisobparol1->ForeColor = System::Drawing::Color::Gray;
+		hisobparol2->Text = L"	Yangi parol";
+		hisobparol2->ForeColor = System::Drawing::Color::Gray;
+		panelhisob->Visible = true;
+		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
+		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
+		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
+		if (panelqoshish->Visible == true) panelqoshish->Visible = false;
+		boshlabel->Text = L"Hisob";
+		menu->Text = L"   Menu";
+		menu->Size = System::Drawing::Size(197, 49);
+		panel1->Visible = true;
+		if (videoSource != nullptr && videoSource->IsRunning)
+		{
+			videoSource->Stop();
+		}
 	}
-}
-private: System::Void hisoblogin2_Leave(System::Object^ sender, System::EventArgs^ e) {
+	private: System::Void rasmtanlash_Click(System::Object^ sender, System::EventArgs^ e) {
+		OpenFileDialog^ open = gcnew OpenFileDialog();
 
-	if (hisoblogin2->Text->Trim() == L"") {
+		open->Filter = "Image Files|*.jpg;*.png;*.jpeg";
+
+		if (open->ShowDialog() == System::Windows::Forms::DialogResult::OK)
+		{
+			rasmqoshish->Image = Image::FromFile(open->FileName);
+		}
+	}
+	private: System::Void qoshish_Click(System::Object^ sender, System::EventArgs^ e) {
+		menu->Size = System::Drawing::Size(48, 48);
+		menu->Text = "";
+		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
+		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
+		if (panel1->Visible == true) panel1->Visible = false;
+		if (panelhisob->Visible == true) panelhisob->Visible = false;
+		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
+		panelqoshish->Visible = true;
+		boshlabel->Text = L"Qo\'shish";
+		if (videoSource != nullptr && videoSource->IsRunning)
+		{
+			videoSource->Stop();
+		}
+	}
+	private: System::Void malumot_Click(System::Object^ sender, System::EventArgs^ e) {
+		menu->Size = System::Drawing::Size(48, 48);
+		menu->Text = "";
+		panelmalumot->Visible = true;
+		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
+		if (panel1->Visible == true) panel1->Visible = false;
+		if (panelhisob->Visible == true) panelhisob->Visible = false;
+		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
+		if (panelqoshish->Visible == true) panelqoshish->Visible = false;
+		boshlabel->Text = L"Qo\'shish";
+		if (videoSource != nullptr && videoSource->IsRunning)
+		{
+			videoSource->Stop();
+		}
+	}
+	private: System::Void rasmtanlashtaxrir_Click(System::Object^ sender, System::EventArgs^ e) {
+		OpenFileDialog^ open = gcnew OpenFileDialog();
+
+		open->Filter = "Image Files|*.jpg;*.png;*.jpeg";
+
+		if (open->ShowDialog() == System::Windows::Forms::DialogResult::OK)
+		{
+			rasmtahrir->Image = Image::FromFile(open->FileName);
+		}
+	}
+	private: System::Void tahrir_Click(System::Object^ sender, System::EventArgs^ e) {
+		menu->Size = System::Drawing::Size(48, 48);
+		menu->Text = "";
+		paneltahrir->Visible = true;
+		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
+		if (panel1->Visible == true) panel1->Visible = false;
+		if (panelhisob->Visible == true) panelhisob->Visible = false;
+		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
+		if (panelqoshish->Visible == true) panelqoshish->Visible = false;
+		boshlabel->Text = L"Qo\'shish";
+		if (videoSource != nullptr && videoSource->IsRunning)
+		{
+			videoSource->Stop();
+		}
+	}
+	private: System::Void button1_Click(System::Object^ sender, System::EventArgs^ e) {
+		hisoblogin1->Text = L"	Joriy login";
+		hisoblogin1->ForeColor = System::Drawing::Color::Gray;
 		hisoblogin2->Text = L"	Yangi login";
 		hisoblogin2->ForeColor = System::Drawing::Color::Gray;
 	}
-}
-private: System::Void hisobparol1_Leave(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisobparol1->Text->Trim() == L"") {
+	private: System::Void button2_Click(System::Object^ sender, System::EventArgs^ e) {
 		hisobparol1->Text = L"	Joriy parol";
 		hisobparol1->ForeColor = System::Drawing::Color::Gray;
-	}
-}
-private: System::Void hisobparol2_Leave(System::Object^ sender, System::EventArgs^ e) {
-
-	if (hisobparol2->Text->Trim() == L"") {
 		hisobparol2->Text = L"	Yangi parol";
 		hisobparol2->ForeColor = System::Drawing::Color::Gray;
 	}
-}
-private: System::Void malumotizlash_Click(System::Object ^ sender, System::EventArgs ^ e) {
-	if (jshshirizlash->Text->Trim() == "") {
-		MessageBox::Show("Iltimos, izlash uchun JShShIR raqamini kiriting!", "Ogohlantirish", MessageBoxButtons::OK, MessageBoxIcon::Warning);
-		return;
+	private: System::Void saqlash_Click(System::Object^ sender, System::EventArgs^ e) {
+		tahrirism->Clear();
+		tahrirfamilya->Clear();
+		tahrirota->Clear();
+		tahrirmanzil->Clear();
+		tahrirjshshir->Clear();
 	}
+	private: System::Void qoshishsaqlash_Click(System::Object^ sender, System::EventArgs^ e) {
+		try {
+			SqlConnection^ ulanish = gcnew SqlConnection(connString);
+			ulanish->Open();
+			String^ query = "INSERT INTO hisob (login, parol, ism, otasining_ismi, familiya, jshshir, manzil) " +
+				"VALUES (@login, @parol, @ism, @otasining_ismi, @fam, @jsh, @manzil)";
 
-	String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
-	SqlConnection^ ulanish = gcnew SqlConnection(connString);
+			SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
+			buyruq->Parameters->AddWithValue("@login", qoshishlogin->Text);
+			buyruq->Parameters->AddWithValue("@parol", qoshishparol1->Text);
+			buyruq->Parameters->AddWithValue("@ism", qoshishism->Text);
+			buyruq->Parameters->AddWithValue("@otasining_ismi", qoshishota->Text);
+			buyruq->Parameters->AddWithValue("@fam", qoshishfamilya->Text);
+			buyruq->Parameters->AddWithValue("@jsh", qoshishjshshir->Text);
+			buyruq->Parameters->AddWithValue("@manzil", qoshishmanzil->Text);
 
-	String^ query = "SELECT login, ism, familiya, otasining_ismi, manzil FROM hisob WHERE jshshir = @jsh";
+			buyruq->ExecuteNonQuery();
+			ulanish->Close();
 
-	SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
-	buyruq->Parameters->AddWithValue("@jsh", jshshirizlash->Text->Trim());
-
-	try {
-		ulanish->Open();
-		SqlDataReader^ oquvchi = buyruq->ExecuteReader();
-		if (oquvchi->Read()) {
-			malumotlogin->Text = oquvchi["login"]->ToString();
-			malumotparol->Text = oquvchi["parol"]->ToString();
-			malumotism->Text = oquvchi["ism"]->ToString();
-			malumotfamilya->Text = oquvchi["familiya"]->ToString();
-			malumotjshshir->Text = oquvchi["jshshir"]->ToString();
-			malumotota->Text = oquvchi["otasining_ismi"]->ToString();
-			malumotmanzil->Text = oquvchi["manzil"]->ToString();
-			MessageBox::Show("Ma'lumotlar topildi!", "Muvaffaqiyat", MessageBoxButtons::OK, MessageBoxIcon::Information);
+			MessageBox::Show("Ma'lumotlar saqlandi!");
 		}
-		else {
-			MessageBox::Show("Bunday JShShIR bilan foydalanuvchi topilmadi.", "Natija", MessageBoxButtons::OK, MessageBoxIcon::Exclamation);
-			malumotlogin->Text = "";
-			malumotparol->Text = "";
-			malumotism->Text = "";
-			malumotfamilya->Text = "";
-			malumotota->Text = "";
-			malumotmanzil->Text = "";
+		catch (SqlException^ ex) {
+			if (ex->Number == 2627) {
+				MessageBox::Show("Xato: Bunday Login yoki JShShIR allaqachon mavjud!");
+			}
+			else {
+				MessageBox::Show("Tizim xatosi: " + ex->Message);
+			}
+		}
+		qoshishism->Clear();
+		qoshishfamilya->Clear();
+		qoshishota->Clear();
+		qoshishjshshir->Clear();
+		qoshishlogin->Clear();
+		qoshishmanzil->Clear();
+		qoshishparol1->Clear();
+		qoshishparol2->Clear();
+		rasmqoshish->Image = nullptr;
+	}
+	private: System::Void hisoblogin1_Enter(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisoblogin1->ForeColor == System::Drawing::Color::Gray) {
+			hisoblogin1->Text = L"";
+			hisoblogin1->ForeColor = System::Drawing::Color::Black;
+		}
+		hisoblogin1->SelectAll();
+	}
+	private: System::Void hisoblogin2_Enter(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisoblogin2->ForeColor == System::Drawing::Color::Gray) {
+			hisoblogin2->Text = L"";
+			hisoblogin2->ForeColor = System::Drawing::Color::Black;
+		}
+		hisoblogin2->SelectAll();
+	}
+	private: System::Void hisobparol1_Enter(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisobparol1->ForeColor == System::Drawing::Color::Gray) {
+			hisobparol1->Text = L"";
+			hisobparol1->ForeColor = System::Drawing::Color::Black;
+		}
+		hisobparol1->SelectAll();
+	}
+	private: System::Void hisobparol2_Enter(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisobparol2->ForeColor == System::Drawing::Color::Gray) {
+			hisobparol2->Text = L"";
+			hisobparol2->ForeColor = System::Drawing::Color::Black;
+		}
+		hisobparol2->SelectAll();
+	}
+	private: System::Void hisoblogin1_Leave(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisoblogin1->Text->Trim() == L"") {
+			hisoblogin1->Text = L"	Joriy login";
+			hisoblogin1->ForeColor = System::Drawing::Color::Gray;
 		}
 	}
-	catch (Exception^ ex) {
-		MessageBox::Show("Xatolik yuz berdi: " + ex->Message);
-	}
-	finally {
-		ulanish->Close();
-	}
+	private: System::Void hisoblogin2_Leave(System::Object^ sender, System::EventArgs^ e) {
 
-}
-};
+		if (hisoblogin2->Text->Trim() == L"") {
+			hisoblogin2->Text = L"	Yangi login";
+			hisoblogin2->ForeColor = System::Drawing::Color::Gray;
+		}
+	}
+	private: System::Void hisobparol1_Leave(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisobparol1->Text->Trim() == L"") {
+			hisobparol1->Text = L"	Joriy parol";
+			hisobparol1->ForeColor = System::Drawing::Color::Gray;
+		}
+	}
+	private: System::Void hisobparol2_Leave(System::Object^ sender, System::EventArgs^ e) {
+
+		if (hisobparol2->Text->Trim() == L"") {
+			hisobparol2->Text = L"	Yangi parol";
+			hisobparol2->ForeColor = System::Drawing::Color::Gray;
+		}
+	}
+	private: System::Void malumotizlash_Click(System::Object^ sender, System::EventArgs^ e) {
+		if (jshshirizlash->Text->Trim() == "") {
+			MessageBox::Show("Iltimos, izlash uchun JShShIR raqamini kiriting!", "Ogohlantirish", MessageBoxButtons::OK, MessageBoxIcon::Warning);
+			return;
+		}
+
+		String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
+		SqlConnection^ ulanish = gcnew SqlConnection(connString);
+
+		String^ query = "SELECT login, ism, familiya, otasining_ismi, manzil FROM hisob WHERE jshshir = @jsh";
+
+		SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
+		buyruq->Parameters->AddWithValue("@jsh", jshshirizlash->Text->Trim());
+
+		try {
+			ulanish->Open();
+			SqlDataReader^ oquvchi = buyruq->ExecuteReader();
+			if (oquvchi->Read()) {
+				malumotlogin->Text = oquvchi["login"]->ToString();
+				malumotparol->Text = oquvchi["parol"]->ToString();
+				malumotism->Text = oquvchi["ism"]->ToString();
+				malumotfamilya->Text = oquvchi["familiya"]->ToString();
+				malumotjshshir->Text = oquvchi["jshshir"]->ToString();
+				malumotota->Text = oquvchi["otasining_ismi"]->ToString();
+				malumotmanzil->Text = oquvchi["manzil"]->ToString();
+				MessageBox::Show("Ma'lumotlar topildi!", "Muvaffaqiyat", MessageBoxButtons::OK, MessageBoxIcon::Information);
+			}
+			else {
+				MessageBox::Show("Bunday JShShIR bilan foydalanuvchi topilmadi.", "Natija", MessageBoxButtons::OK, MessageBoxIcon::Exclamation);
+				malumotlogin->Text = "";
+				malumotparol->Text = "";
+				malumotism->Text = "";
+				malumotfamilya->Text = "";
+				malumotota->Text = "";
+				malumotmanzil->Text = "";
+			}
+		}
+		catch (Exception^ ex) {
+			MessageBox::Show("Xatolik yuz berdi: " + ex->Message);
+		}
+		finally {
+			ulanish->Close();
+		}
+
+	}
+	private: System::Void asosiybatafsil_Click(System::Object^ sender, System::EventArgs^ e) {
+		// Qayta izlashni boshlash
+		this->asosiytext->Clear();
+		this->asosiytext->AppendText("🔍 Qayta izlanmoqda...\r\n");
+		asosiylabel->Text = "Kamerada bir kishining yuzi ko'rinishini ta'minlang!";
+		m_tanishAktiv = true;
+		if (m_timer != nullptr) m_timer->Start();
+	}
+	};
 }
