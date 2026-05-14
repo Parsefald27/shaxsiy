@@ -20,7 +20,7 @@ namespace shaxsiy {
 	public ref class Forma1 : public System::Windows::Forms::Form
 	{
 	public:
-		
+
 		Forma1(void)
 		{
 			InitializeComponent();
@@ -59,7 +59,7 @@ namespace shaxsiy {
 		/// <summary>
 		/// Required designer variable.
 		/// </summary>
-		System::ComponentModel::Container ^components;
+		System::ComponentModel::Container^ components;
 
 #pragma region Windows Form Designer generated code
 		/// <summary>
@@ -95,7 +95,7 @@ namespace shaxsiy {
 			this->panel1->Location = System::Drawing::Point(0, 0);
 			this->panel1->Margin = System::Windows::Forms::Padding(4, 3, 4, 3);
 			this->panel1->Name = L"panel1";
-			this->panel1->Size = System::Drawing::Size(2158, 857);
+			this->panel1->Size = System::Drawing::Size(1006, 516);
 			this->panel1->TabIndex = 0;
 			// 
 			// label4
@@ -107,7 +107,7 @@ namespace shaxsiy {
 			this->label4->Font = (gcnew System::Drawing::Font(L"Times New Roman", 47.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->label4->ForeColor = System::Drawing::Color::White;
-			this->label4->Location = System::Drawing::Point(680, 9);
+			this->label4->Location = System::Drawing::Point(133, 9);
 			this->label4->Margin = System::Windows::Forms::Padding(4, 0, 4, 0);
 			this->label4->Name = L"label4";
 			this->label4->Size = System::Drawing::Size(630, 83);
@@ -127,7 +127,7 @@ namespace shaxsiy {
 			this->panel2->Controls->Add(this->label1);
 			this->panel2->Controls->Add(this->label5);
 			this->panel2->Controls->Add(this->label2);
-			this->panel2->Location = System::Drawing::Point(611, 280);
+			this->panel2->Location = System::Drawing::Point(91, 125);
 			this->panel2->Margin = System::Windows::Forms::Padding(4, 3, 4, 3);
 			this->panel2->Name = L"panel2";
 			this->panel2->Size = System::Drawing::Size(460, 308);
@@ -255,7 +255,7 @@ namespace shaxsiy {
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(7, 13);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(2158, 857);
+			this->ClientSize = System::Drawing::Size(1006, 516);
 			this->Controls->Add(this->panel1);
 			this->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 7.2F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
@@ -273,22 +273,22 @@ namespace shaxsiy {
 
 		}
 #pragma endregion
-	System::Void Forma1_Load(System::Object^ sender, System::EventArgs^ e)
-	{
-		panel1->BackgroundImage = Image::FromFile("C:\\Users\\Musojon\\source\\repos\\shaxsiy\\shaxsiy\\25236f481ce6673c9ad901ce4fc594f0.jpg");
-		parol->UseSystemPasswordChar = true;
-		this->ActiveControl = this->login;
-		this->login->Select();
-	}
-
-	System::Void login_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e)
-	{
-		if (e->KeyCode == System::Windows::Forms::Keys::Enter) {
-			this->parol->Focus();
-			e->Handled = true;
-			e->SuppressKeyPress = true;
+		System::Void Forma1_Load(System::Object^ sender, System::EventArgs^ e)
+		{
+			panel1->BackgroundImage = Image::FromFile("kirish.jpg");
+			parol->UseSystemPasswordChar = true;
+			this->ActiveControl = this->login;
+			this->login->Select();
 		}
-	}
+
+		System::Void login_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e)
+		{
+			if (e->KeyCode == System::Windows::Forms::Keys::Enter) {
+				this->parol->Focus();
+				e->Handled = true;
+				e->SuppressKeyPress = true;
+			}
+		}
 	private:System::Void parol_KeyDown(System::Object^ sender, System::Windows::Forms::KeyEventArgs^ e)
 	{
 		if (e->KeyCode == System::Windows::Forms::Keys::Enter)
@@ -299,42 +299,42 @@ namespace shaxsiy {
 		}
 	}
 
-  private: System::Void kirish_Click(System::Object^ sender, System::EventArgs^ e) {
-	  String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
-	  SqlConnection^ ulanish = gcnew SqlConnection(connString);
-	  String^ query = "SELECT login FROM hisob WHERE login = @login AND parol = @parol";
-	  SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
-	  buyruq->Parameters->AddWithValue("@login", login->Text->Trim());
-	  buyruq->Parameters->AddWithValue("@parol", parol->Text->Trim());
+	private: System::Void kirish_Click(System::Object^ sender, System::EventArgs^ e) {
+		String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
+		SqlConnection^ ulanish = gcnew SqlConnection(connString);
+		String^ query = "SELECT login FROM hisob WHERE login = @login AND parol = @parol";
+		SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
+		buyruq->Parameters->AddWithValue("@login", login->Text->Trim());
+		buyruq->Parameters->AddWithValue("@parol", parol->Text->Trim());
 
-	  try {
-		  ulanish->Open();
+		try {
+			ulanish->Open();
 
-		  SqlDataReader^ oquvchi = buyruq->ExecuteReader();
+			SqlDataReader^ oquvchi = buyruq->ExecuteReader();
 
-		  if (oquvchi->Read()) {
-			  String^ log = oquvchi["login"]->ToString();
+			if (oquvchi->Read()) {
+				String^ log = oquvchi["login"]->ToString();
 
-			  Forma4^ forma4 = gcnew Forma4(log, this);
-			  forma4->StartPosition = FormStartPosition::Manual;
-			  forma4->Location = this->Location;
-			  forma4->Size = this->Size;
-			  this->Hide();
-			  forma4->Show();
-			  login->Clear();
-			  parol->Clear();
-			  anonim->BackColor = System::Drawing::Color::White;
-		  }
-		  else {
-			  anonim->BackColor = System::Drawing::Color::Red;
-		  }
-	  }
-	  catch (Exception^ ex) {
-		  MessageBox::Show("Tizimda xatolik: " + ex->Message);
-	  }
-	  finally {
-		  ulanish->Close();
-	  }
+				Forma4^ forma4 = gcnew Forma4(log, this);
+				forma4->StartPosition = FormStartPosition::Manual;
+				forma4->Location = this->Location;
+				forma4->Size = this->Size;
+				this->Hide();
+				forma4->Show();
+				login->Clear();
+				parol->Clear();
+				anonim->BackColor = System::Drawing::Color::White;
+			}
+			else {
+				anonim->BackColor = System::Drawing::Color::Red;
+			}
+		}
+		catch (Exception^ ex) {
+			MessageBox::Show("Tizimda xatolik: " + ex->Message);
+		}
+		finally {
+			ulanish->Close();
+		}
 	}
 
 	private: System::Void anonim_Click(System::Object^ sender, System::EventArgs^ e) {
@@ -346,8 +346,8 @@ namespace shaxsiy {
 		forma3->Show();
 		this->Hide();
 	}
-private: System::Void checkBox1_CheckedChanged(System::Object^ sender, System::EventArgs^ e) {
-	parol->UseSystemPasswordChar = !checkBox1->Checked;
-}
-};
+	private: System::Void checkBox1_CheckedChanged(System::Object^ sender, System::EventArgs^ e) {
+		parol->UseSystemPasswordChar = !checkBox1->Checked;
+	}
+	};
 }
