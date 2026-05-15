@@ -19,6 +19,9 @@ namespace shaxsiy {
 	using namespace AForge::Video::DirectShow;
 	using namespace System::Data;
 	using namespace System::Data::SqlClient;
+	using namespace System::Drawing;
+	using namespace System::Drawing::Drawing2D;
+
 	public ref class Forma4 : public System::Windows::Forms::Form
 	{
 		String^ id;
@@ -27,6 +30,22 @@ namespace shaxsiy {
 		FilterInfoCollection^ videoDevices;
 	private: System::Windows::Forms::Button^ qayta;
 	private: System::Windows::Forms::CheckBox^ checkBox2;
+	private: System::Windows::Forms::Panel^ panel3;
+	private: System::Windows::Forms::TabControl^ tabControl1;
+	private: System::Windows::Forms::TabPage^ tabPage1;
+	private: System::Windows::Forms::TabPage^ tabPage2;
+	private: System::Windows::Forms::DataGridView^ gridKirish;
+	private: System::Windows::Forms::DataGridView^ gridQidiruv;
+
+	private: System::Windows::Forms::Button^ statistik;
+	private: System::Windows::Forms::Timer^ sidebarTimer;
+	private: System::Windows::Forms::Timer^ timer1;
+
+
+
+
+
+
 	public:
 
 	public:
@@ -274,13 +293,28 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 				SqlDataReader^ r = cmd->ExecuteReader();
 				this->asosiytext->Clear();
 				if (r->Read()) {
+					String^ ism = r["ism"]->ToString(); ism = ism->Replace("|", "'");
+					String^ fam = r["familiya"]->ToString();fam = fam->Replace("|", "'");
+					String^ ota = r["otasining_ismi"]->ToString(); ota = ota->Replace("|", "'");
+					String^ jsh = r["jshshir"]->ToString();
+					String^ manz = r["manzil"]->ToString();manz = manz->Replace("|", "'");
 					this->asosiytext->AppendText("SHAXS ANIQLANDI\r\n\r\n");
-					this->asosiytext->AppendText("Ismi:      " + r["ism"]->ToString() + "\r\n");
-					this->asosiytext->AppendText("Familyasi: " + r["familiya"]->ToString() + "\r\n");
-					this->asosiytext->AppendText("Otasi:     " + r["otasining_ismi"]->ToString() + "\r\n");
-					this->asosiytext->AppendText("JShShIR:   " + r["jshshir"]->ToString() + "\r\n");
-					this->asosiytext->AppendText("Manzil:    " + r["manzil"]->ToString() + "\r\n");
-					asosiylabel->Text = r["ism"]->ToString() + " " + r["familiya"]->ToString();
+					this->asosiytext->AppendText("Ismi:      " + ism + "\r\n");
+					this->asosiytext->AppendText("Familyasi: " + fam + "\r\n");
+					this->asosiytext->AppendText("Otasi:     " + ota + "\r\n");
+					this->asosiytext->AppendText("JShShIR:   " + jsh + "\r\n");
+					this->asosiytext->AppendText("Manzil:    " + manz + "\r\n");
+					asosiylabel->Text = ism+ " " + fam;
+					jsh = r["jshshir"]->ToString();
+					r->Close();
+					String^ logQuery = "INSERT INTO HarakatlarStatistikasi (shaxs_id, jshshir, turi, izoh) VALUES (@id, @jsh, 'QIDIRUV', @izoh)";
+					SqlCommand^ logCmd = gcnew SqlCommand(logQuery, ulanish);
+
+					logCmd->Parameters->AddWithValue("@id", id); // yoki ID ishlatsang yaxshiroq
+					logCmd->Parameters->AddWithValue("@jsh", jsh);
+					logCmd->Parameters->AddWithValue("@izoh", "Yuz tanish malumoti");
+
+					logCmd->ExecuteNonQuery();
 				}
 				else {
 					this->asosiytext->AppendText("Yuz tanildi, bazada topilmadi.\r\nJShShIR: ");
@@ -385,15 +419,18 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 	private: System::Windows::Forms::Button^ chiqish;
 	private: System::Windows::Forms::PictureBox^ asosiypicture;
 	private: System::Windows::Forms::TextBox^ asosiytext;
+private: System::ComponentModel::IContainer^ components;
 	private:
-		System::ComponentModel::Container^ components;
+
 
 #pragma region Windows Form Designer generated code
 		void InitializeComponent(void)
 		{
+			this->components = (gcnew System::ComponentModel::Container());
 			System::ComponentModel::ComponentResourceManager^ resources = (gcnew System::ComponentModel::ComponentResourceManager(Forma4::typeid));
 			this->panel1 = (gcnew System::Windows::Forms::Panel());
 			this->chiqish = (gcnew System::Windows::Forms::Button());
+			this->statistik = (gcnew System::Windows::Forms::Button());
 			this->qoshish = (gcnew System::Windows::Forms::Button());
 			this->malumot = (gcnew System::Windows::Forms::Button());
 			this->bosh = (gcnew System::Windows::Forms::Button());
@@ -484,6 +521,14 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->label27 = (gcnew System::Windows::Forms::Label());
 			this->label28 = (gcnew System::Windows::Forms::Label());
 			this->label29 = (gcnew System::Windows::Forms::Label());
+			this->panel3 = (gcnew System::Windows::Forms::Panel());
+			this->tabControl1 = (gcnew System::Windows::Forms::TabControl());
+			this->tabPage1 = (gcnew System::Windows::Forms::TabPage());
+			this->gridKirish = (gcnew System::Windows::Forms::DataGridView());
+			this->tabPage2 = (gcnew System::Windows::Forms::TabPage());
+			this->gridQidiruv = (gcnew System::Windows::Forms::DataGridView());
+			this->sidebarTimer = (gcnew System::Windows::Forms::Timer(this->components));
+			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->panel1->SuspendLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->asosiypicture))->BeginInit();
 			this->panel2->SuspendLayout();
@@ -496,12 +541,19 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->malumotrasm))->BeginInit();
 			this->paneltahrir->SuspendLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->rasmtahrir))->BeginInit();
+			this->panel3->SuspendLayout();
+			this->tabControl1->SuspendLayout();
+			this->tabPage1->SuspendLayout();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->gridKirish))->BeginInit();
+			this->tabPage2->SuspendLayout();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->gridQidiruv))->BeginInit();
 			this->SuspendLayout();
 			// 
 			// panel1
 			// 
-			this->panel1->BackColor = System::Drawing::SystemColors::GradientInactiveCaption;
+			this->panel1->BackColor = System::Drawing::Color::Transparent;
 			this->panel1->Controls->Add(this->chiqish);
+			this->panel1->Controls->Add(this->statistik);
 			this->panel1->Controls->Add(this->qoshish);
 			this->panel1->Controls->Add(this->malumot);
 			this->panel1->Controls->Add(this->bosh);
@@ -510,6 +562,7 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->panel1->Name = L"panel1";
 			this->panel1->Size = System::Drawing::Size(200, 516);
 			this->panel1->TabIndex = 0;
+			this->panel1->Paint += gcnew System::Windows::Forms::PaintEventHandler(this, &Forma4::panel1_Paint);
 			// 
 			// chiqish
 			// 
@@ -518,6 +571,7 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->chiqish->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 15.70909F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->chiqish->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
+			this->chiqish->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"chiqish.Image")));
 			this->chiqish->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
 			this->chiqish->Location = System::Drawing::Point(0, 467);
 			this->chiqish->Name = L"chiqish";
@@ -527,12 +581,29 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->chiqish->UseVisualStyleBackColor = true;
 			this->chiqish->Click += gcnew System::EventHandler(this, &Forma4::chiqish_Click);
 			// 
+			// statistik
+			// 
+			this->statistik->Cursor = System::Windows::Forms::Cursors::Hand;
+			this->statistik->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
+				static_cast<System::Byte>(162)));
+			this->statistik->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
+			this->statistik->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"statistik.Image")));
+			this->statistik->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
+			this->statistik->Location = System::Drawing::Point(0, 223);
+			this->statistik->Name = L"statistik";
+			this->statistik->Size = System::Drawing::Size(197, 49);
+			this->statistik->TabIndex = 0;
+			this->statistik->Text = L"  Statistika";
+			this->statistik->UseVisualStyleBackColor = true;
+			this->statistik->Click += gcnew System::EventHandler(this, &Forma4::statistik_Click);
+			// 
 			// qoshish
 			// 
 			this->qoshish->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->qoshish->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->qoshish->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
+			this->qoshish->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"qoshish.Image")));
 			this->qoshish->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
 			this->qoshish->Location = System::Drawing::Point(0, 168);
 			this->qoshish->Name = L"qoshish";
@@ -548,12 +619,13 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->malumot->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 15.70909F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->malumot->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
+			this->malumot->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"malumot.Image")));
 			this->malumot->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
 			this->malumot->Location = System::Drawing::Point(0, 113);
 			this->malumot->Name = L"malumot";
 			this->malumot->Size = System::Drawing::Size(197, 49);
 			this->malumot->TabIndex = 0;
-			this->malumot->Text = L"Ma\'lumotlar";
+			this->malumot->Text = L"  Ma\'lumot";
 			this->malumot->UseVisualStyleBackColor = true;
 			this->malumot->Click += gcnew System::EventHandler(this, &Forma4::malumot_Click);
 			// 
@@ -563,6 +635,7 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->bosh->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 15.70909F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->bosh->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
+			this->bosh->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"bosh.Image")));
 			this->bosh->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
 			this->bosh->Location = System::Drawing::Point(0, 58);
 			this->bosh->Name = L"bosh";
@@ -1021,6 +1094,7 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			// 
 			// checkBox2
 			// 
+			this->checkBox2->Anchor = System::Windows::Forms::AnchorStyles::None;
 			this->checkBox2->AutoSize = true;
 			this->checkBox2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
@@ -1311,6 +1385,7 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->checkBox1->Size = System::Drawing::Size(15, 14);
 			this->checkBox1->TabIndex = 19;
 			this->checkBox1->UseVisualStyleBackColor = true;
+			this->checkBox1->CheckedChanged += gcnew System::EventHandler(this, &Forma4::checkBox1_CheckedChanged);
 			// 
 			// malumotparol
 			// 
@@ -1319,7 +1394,6 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 				static_cast<System::Byte>(162)));
 			this->malumotparol->Location = System::Drawing::Point(527, 311);
 			this->malumotparol->Name = L"malumotparol";
-			this->malumotparol->PasswordChar = '*';
 			this->malumotparol->ReadOnly = true;
 			this->malumotparol->Size = System::Drawing::Size(388, 31);
 			this->malumotparol->TabIndex = 12;
@@ -1511,6 +1585,8 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->jshshirizlash->Name = L"jshshirizlash";
 			this->jshshirizlash->Size = System::Drawing::Size(497, 31);
 			this->jshshirizlash->TabIndex = 1;
+			this->jshshirizlash->TextChanged += gcnew System::EventHandler(this, &Forma4::Jshshir_TextChanged);
+			this->jshshirizlash->KeyPress += gcnew System::Windows::Forms::KeyPressEventHandler(this, &Forma4::jshshir_KeyPress);
 			// 
 			// label16
 			// 
@@ -1703,6 +1779,78 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->label29->TabIndex = 23;
 			this->label29->Text = L"Ism:";
 			// 
+			// panel3
+			// 
+			this->panel3->Anchor = System::Windows::Forms::AnchorStyles::None;
+			this->panel3->Controls->Add(this->tabControl1);
+			this->panel3->Location = System::Drawing::Point(0, 75);
+			this->panel3->Name = L"panel3";
+			this->panel3->Size = System::Drawing::Size(1002, 441);
+			this->panel3->TabIndex = 6;
+			// 
+			// tabControl1
+			// 
+			this->tabControl1->Controls->Add(this->tabPage1);
+			this->tabControl1->Controls->Add(this->tabPage2);
+			this->tabControl1->Dock = System::Windows::Forms::DockStyle::Fill;
+			this->tabControl1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 9.818182F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
+				static_cast<System::Byte>(162)));
+			this->tabControl1->Location = System::Drawing::Point(0, 0);
+			this->tabControl1->Name = L"tabControl1";
+			this->tabControl1->SelectedIndex = 0;
+			this->tabControl1->Size = System::Drawing::Size(1002, 441);
+			this->tabControl1->TabIndex = 0;
+			// 
+			// tabPage1
+			// 
+			this->tabPage1->Controls->Add(this->gridKirish);
+			this->tabPage1->Location = System::Drawing::Point(4, 27);
+			this->tabPage1->Name = L"tabPage1";
+			this->tabPage1->Padding = System::Windows::Forms::Padding(3);
+			this->tabPage1->Size = System::Drawing::Size(994, 410);
+			this->tabPage1->TabIndex = 0;
+			this->tabPage1->Text = L"Kirish";
+			this->tabPage1->UseVisualStyleBackColor = true;
+			// 
+			// gridKirish
+			// 
+			this->gridKirish->ColumnHeadersHeightSizeMode = System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
+			this->gridKirish->Dock = System::Windows::Forms::DockStyle::Fill;
+			this->gridKirish->Location = System::Drawing::Point(3, 3);
+			this->gridKirish->Name = L"gridKirish";
+			this->gridKirish->RowHeadersWidth = 47;
+			this->gridKirish->Size = System::Drawing::Size(988, 404);
+			this->gridKirish->TabIndex = 0;
+			// 
+			// tabPage2
+			// 
+			this->tabPage2->Controls->Add(this->gridQidiruv);
+			this->tabPage2->Location = System::Drawing::Point(4, 27);
+			this->tabPage2->Name = L"tabPage2";
+			this->tabPage2->Padding = System::Windows::Forms::Padding(3);
+			this->tabPage2->Size = System::Drawing::Size(994, 410);
+			this->tabPage2->TabIndex = 1;
+			this->tabPage2->Text = L"Qidiruv";
+			this->tabPage2->UseVisualStyleBackColor = true;
+			// 
+			// gridQidiruv
+			// 
+			this->gridQidiruv->ColumnHeadersHeightSizeMode = System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
+			this->gridQidiruv->Dock = System::Windows::Forms::DockStyle::Fill;
+			this->gridQidiruv->Location = System::Drawing::Point(3, 3);
+			this->gridQidiruv->Name = L"gridQidiruv";
+			this->gridQidiruv->RowHeadersWidth = 47;
+			this->gridQidiruv->Size = System::Drawing::Size(988, 404);
+			this->gridQidiruv->TabIndex = 0;
+			// 
+			// sidebarTimer
+			// 
+			this->sidebarTimer->Interval = 10;
+			// 
+			// timer1
+			// 
+			this->timer1->Tick += gcnew System::EventHandler(this, &Forma4::timer1_Tick);
+			// 
 			// Forma4
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
@@ -1713,11 +1861,12 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->Controls->Add(this->menu);
 			this->Controls->Add(this->panel1);
 			this->Controls->Add(this->panel2);
+			this->Controls->Add(this->panelmalumot);
+			this->Controls->Add(this->panel3);
 			this->Controls->Add(this->panelqoshish);
 			this->Controls->Add(this->panelasosiy);
 			this->Controls->Add(this->panelhisob);
 			this->Controls->Add(this->paneltahrir);
-			this->Controls->Add(this->panelmalumot);
 			this->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"$this.Icon")));
 			this->Name = L"Forma4";
 			this->Text = L"Asosiy";
@@ -1741,20 +1890,54 @@ private: System::Windows::Forms::PictureBox^ malumotrasm;
 			this->paneltahrir->ResumeLayout(false);
 			this->paneltahrir->PerformLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->rasmtahrir))->EndInit();
+			this->panel3->ResumeLayout(false);
+			this->tabControl1->ResumeLayout(false);
+			this->tabPage1->ResumeLayout(false);
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->gridKirish))->EndInit();
+			this->tabPage2->ResumeLayout(false);
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->gridQidiruv))->EndInit();
 			this->ResumeLayout(false);
 
 		}
 #pragma endregion
+		bool isExpanded = false;
+		int maxWidth = 197;
+		int minWidth = 48;
 		String^ rasm;
 		String^ eskijshshir;
+private: System::Void sidebarTimer_Tick(System::Object^ sender, System::EventArgs^ e) {
+	if (isExpanded) {
+		// MENYUNI YOPISH
+		panel1->Width -= 20; // Har bir tick'da 20px ga qisqaradi
+		if (panel1->Width <= minWidth) {
+			panel1->Width = minWidth;
+			menu->Size = System::Drawing::Size(minWidth, minWidth);
+			menu->Text = "";
+			panel1->Visible = false; // To'liq yopilganda yashirish mumkin
+			isExpanded = false;
+			sidebarTimer->Stop();
+		}
+	}
+	else {
+		// MENYUNI OCHISH
+		panel1->Width += 20;
+		menu->Text = L"   Menu";
+		menu->Size = System::Drawing::Size(maxWidth, 49);
+		if (panel1->Width >= maxWidth) {
+			panel1->Width = maxWidth;
+			isExpanded = true;
+			sidebarTimer->Stop();
+		}
+	}
+}
 	private: System::Void hisoblogin1_Enter(System::Object^ sender, System::EventArgs^ e) {
 
-				if (hisoblogin1->ForeColor == System::Drawing::Color::Gray) {
-					hisoblogin1->Text = L"";
-					hisoblogin1->ForeColor = System::Drawing::Color::Black;
-				}
-				hisoblogin1->SelectAll();
-			}
+		if (hisoblogin1->ForeColor == System::Drawing::Color::Gray) {
+			hisoblogin1->Text = L"";
+			hisoblogin1->ForeColor = System::Drawing::Color::Black;
+		}
+		hisoblogin1->SelectAll();
+	}
 	private: System::Void hisoblogin2_Enter(System::Object^ sender, System::EventArgs^ e) {
 
 		if (hisoblogin2->ForeColor == System::Drawing::Color::Gray) {
@@ -1847,7 +2030,7 @@ private: System::Void TahrirEnterMove(System::Object^ sender, System::Windows::F
 		else if (sender == qoshishjshshir)
 			this->qoshishmanzil->Focus();
 
-		else if (sender ==qoshishmanzil )
+		else if (sender == qoshishmanzil)
 			this->qoshishlogin->Focus();
 
 		else if (sender == qoshishlogin)
@@ -1903,15 +2086,21 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		tb->BackColor = System::Drawing::Color::LightCoral;
 }
 	private: System::Void Forma4_Load(System::Object^ sender, System::EventArgs^ e) {
+		System::Reflection::PropertyInfo^ pnlProperty = panel1->GetType()->GetProperty("DoubleBuffered",
+			System::Reflection::BindingFlags::NonPublic | System::Reflection::BindingFlags::Instance);
+		pnlProperty->SetValue(panel1, true, nullptr);
+		this->DoubleBuffered = true;
 		BackgroundImage = Image::FromFile("asosiy.jpg");
 		menu->Size = System::Drawing::Size(48, 48);
 		menu->Text = "";
+		panel1->Visible = false;
 		paneltahrir->Visible = false;
 		panelmalumot->Visible = false;
-		panel1->Visible = false;
+		panel3->Visible = false;
 		panelasosiy->Visible = false;
 		panelhisob->Visible = false;
 		panelqoshish->Visible = false;
+		malumotparol->UseSystemPasswordChar = true;
 	}
 	private: void video_NewFrame(System::Object^ sender, NewFrameEventArgs^ eventArgs)
 	{
@@ -1932,38 +2121,46 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		}
 		this->asosiypicture->Image = bmp;
 	}
-	private: System::Void menu_Click(System::Object^ sender, System::EventArgs^ e) {
-		if (panel1->Visible == false)
-		{
-			menu->Text = L"   Menu";
-			menu->Size = System::Drawing::Size(197, 49);
-			panel1->Visible = true;
-
-		}
-		else
-		{
-			menu->Size = System::Drawing::Size(48, 48);
-			menu->Text = "";
-			panel1->Visible = false;
-		}
+private: System::Void menu_Click(System::Object^ sender, System::EventArgs^ e) {
+	if (panel1->Visible == false)
+	{
+		menu->Text = L"   Menu";
+		menu->Size = System::Drawing::Size(197, 49);
+		panel1->Visible = true;
+		panel1->BringToFront();
+		menu->BringToFront();
 	}
+	else
+	{
+		menu->Size = System::Drawing::Size(48, 48);
+		menu->Text = "";
+		panel1->Visible = false;
+	}
+	sidebarTimer->Start();
+}
 	private: System::Void menu_MouseEnter(System::Object^ sender, System::EventArgs^ e)
 	{
 		this->menu->Text = L"   Menu";
 		this->menu->Size = System::Drawing::Size(197, 49);
 		this->panel1->Visible = true;
+		panel1->BringToFront();
+		menu->BringToFront();
+		sidebarTimer->Start();
 	}
 	private: System::Void bosh_Click(System::Object^ sender, System::EventArgs^ e) {
 		menu->Size = System::Drawing::Size(48, 48);
 		menu->Text = "";
+		if (panel1->Visible == true) panel1->Visible = false;
 		if (paneltahrir->Visible)  paneltahrir->Visible = false;
 		if (panelmalumot->Visible) panelmalumot->Visible = false;
-		if (panel1->Visible)       panel1->Visible = false;
+		if (panel3->Visible)       panel3->Visible = false;
 		if (panelhisob->Visible)   panelhisob->Visible = false;
 		panelasosiy->Visible = true;
 		if (panelqoshish->Visible) panelqoshish->Visible = false;
 		boshlabel->Text = L"Asosiy";
-
+		panel1->BringToFront();
+		menu->BringToFront();
+		panel1->Invalidate();
 		try {
 			videoDevices = gcnew FilterInfoCollection(FilterCategory::VideoInputDevice);
 			if (videoDevices != nullptr && videoDevices->Count > 0) {
@@ -2021,10 +2218,14 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		hisobparol2->Text = L"	Yangi parol";
 		hisobparol2->ForeColor = System::Drawing::Color::Gray;
 		panelhisob->Visible = true;
+		panel1->BringToFront();
+		menu->BringToFront();
+		panel1->Invalidate();
 		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
 		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
 		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
 		if (panelqoshish->Visible == true) panelqoshish->Visible = false;
+		if (panel3->Visible)       panel3->Visible = false;
 		boshlabel->Text = L"Hisob";
 		menu->Text = L"   Menu";
 		menu->Size = System::Drawing::Size(197, 49);
@@ -2054,9 +2255,13 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		qoshishlogin->Visible = false;
 		qoshishparol1->Visible = false;
 		qoshishparol2->Visible = false;
+		panel1->BringToFront();
+		menu->BringToFront();
+		panel1->Invalidate();
+		if (panel1->Visible == true) panel1->Visible = false;
 		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
 		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
-		if (panel1->Visible == true) panel1->Visible = false;
+		if (panel3->Visible)       panel3->Visible = false;
 		if (panelhisob->Visible == true) panelhisob->Visible = false;
 		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
 		panelqoshish->Visible = true;
@@ -2067,15 +2272,32 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		}
 	}
 	private: System::Void malumot_Click(System::Object^ sender, System::EventArgs^ e) {
+		if (label16->Visible == false) label16->Visible = true;
+		if (jshshirizlash->Visible == false) jshshirizlash->Visible = true;
+		if (malumotizlash->Visible == false) malumotizlash->Visible = true;
+		malumotism->Text = "";
+		malumotfamilya->Text = "";
+		malumotota->Text = "";
+		malumotjshshir->Text = "";
+		malumotmanzil->Text = "";
+		malumotlogin->Text = "";
+		malumotparol->Text = "";
+		malumotrasm->Image = nullptr;
+		if (checkBox1->Checked) checkBox1->Checked = false;
 		menu->Size = System::Drawing::Size(48, 48);
 		menu->Text = "";
 		panelmalumot->Visible = true;
-		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
 		if (panel1->Visible == true) panel1->Visible = false;
+		if (paneltahrir->Visible == true) paneltahrir->Visible = false;
+		if (panel3->Visible)       panel3->Visible = false;
 		if (panelhisob->Visible == true) panelhisob->Visible = false;
 		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
 		if (panelqoshish->Visible == true) panelqoshish->Visible = false;
-		boshlabel->Text = L"Qo\'shish";
+		panel1->BringToFront();
+		menu->BringToFront();
+		panel1->Invalidate();
+		// ✅ TUZATILDI: "Qo'shish" emas, "Ma'lumot" bo'lishi kerak
+		boshlabel->Text = L"Ma\'lumot";
 		if (videoSource != nullptr && videoSource->IsRunning)
 		{
 			videoSource->Stop();
@@ -2096,12 +2318,14 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		menu->Size = System::Drawing::Size(48, 48);
 		menu->Text = "";
 		paneltahrir->Visible = true;
-		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
 		if (panel1->Visible == true) panel1->Visible = false;
+		if (panelmalumot->Visible == true) panelmalumot->Visible = false;
+		if (panel3->Visible)       panel3->Visible = false;
 		if (panelhisob->Visible == true) panelhisob->Visible = false;
 		if (panelasosiy->Visible == true) panelasosiy->Visible = false;
 		if (panelqoshish->Visible == true) panelqoshish->Visible = false;
-		boshlabel->Text = L"Qo\'shish";
+		// ✅ TUZATILDI: "Qo'shish" emas, "Tahrirlash" bo'lishi kerak
+		boshlabel->Text = L"Tahrirlash";
 		if (videoSource != nullptr && videoSource->IsRunning)
 		{
 			videoSource->Stop();
@@ -2119,10 +2343,13 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 			String^ joriy = hisoblogin1->Text->Trim();
 			String^ yangi = hisoblogin2->Text->Trim();
 
+			// ✅ TUZATILDI: return; qo'shildi, aks holda kod davom etib xato berardi
 			if (String::IsNullOrEmpty(joriy) || String::IsNullOrEmpty(yangi))
 			{
 				hisoblogin1->BackColor = System::Drawing::Color::LightCoral;
 				hisoblogin2->BackColor = System::Drawing::Color::LightCoral;
+				MessageBox::Show("Barcha maydonlarni to'ldiring!");
+				return;
 			}
 
 			// 🔴 ENG MUHIM TEKSHIRUV
@@ -2189,6 +2416,14 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 			ulanish->Open();
 			Object^ natija = buyruq->ExecuteScalar();
 
+			// ✅ TUZATILDI: natija null bo'lsa NullReferenceException oldini olish
+			if (natija == nullptr || natija == DBNull::Value)
+			{
+				MessageBox::Show("Foydalanuvchi topilmadi!");
+				ulanish->Close();
+				return;
+			}
+
 			String^ dbParol = natija->ToString();
 
 			// 2️⃣ Solishtirish
@@ -2236,6 +2471,8 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 			malumot = tahrirmanzil->Text; malumot = malumot->Replace("'", "|");
 			buyruq->Parameters->AddWithValue("@manzil", malumot);
 			buyruq->Parameters->AddWithValue("@rasm", rasm);
+			// ✅ TUZATILDI: @eskijshshir parametri qo'shildi (avval yo'q edi - SQL xato berardi)
+			buyruq->Parameters->AddWithValue("@eskijshshir", eskijshshir);
 			rasm = nullptr;
 			buyruq->ExecuteNonQuery();
 			ulanish->Close();
@@ -2256,8 +2493,10 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 			String^ malumot;
 			SqlConnection^ ulanish = gcnew SqlConnection(connString);
 			ulanish->Open();
+			// ✅ TUZATILDI: Ustun tartibi bilan parametr tartibi mos keltirildi
+			// (ism, otasining_ismi, familiya -> @ism, @otasining_ismi, @familya)
 			String^ query = "INSERT INTO hisob (login, parol, ism, otasining_ismi, familiya, jshshir, manzil, rasm) " +
-				"VALUES (@login, @parol, @ism, @familya, @otasining_ismi, @jshshir, @manzil, @rasm)";
+				"VALUES (@login, @parol, @ism, @otasining_ismi, @familya, @jshshir, @manzil, @rasm)";
 
 			SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
 			malumot = qoshishlogin->Text; malumot = malumot->Replace("'", "|");
@@ -2309,36 +2548,96 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
 		SqlConnection^ ulanish = gcnew SqlConnection(connString);
 
-		String^ query = "SELECT login, ism, familiya, otasining_ismi, manzil FROM hisob WHERE jshshir = @jshshir";
-
+		String^ query = "SELECT id, login, parol, ism, familiya, otasining_ismi, manzil, jshshir, rasm FROM hisob WHERE jshshir = @jshshir";
 		SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
 		buyruq->Parameters->AddWithValue("@jshshir", jshshirizlash->Text->Trim());
 
 		try {
 			ulanish->Open();
 			SqlDataReader^ oquvchi = buyruq->ExecuteReader();
+
 			String^ k;
 			if (oquvchi->Read()) {
+
 				eskijshshir = oquvchi["jshshir"]->ToString();
-				k = oquvchi["ism"]->ToString();k = k->Replace("|", "'");
+
+				bool loginBor = oquvchi["login"] != DBNull::Value && oquvchi["login"]->ToString() != "";
+				bool parolBor = oquvchi["parol"] != DBNull::Value && oquvchi["parol"]->ToString() != "";
+
+				if (loginBor && parolBor) {
+					malumotlogin->Visible = true;
+					malumotparol->Visible = true;
+
+					malumotlogin->Text = oquvchi["login"]->ToString();
+					malumotparol->Text = oquvchi["parol"]->ToString();
+				}
+				else {
+					malumotlogin->Visible = false;
+					malumotparol->Visible = false;
+				}
+
+				k = oquvchi["ism"]->ToString(); k = k->Replace("|", "'");
 				this->malumotism->Text = k;
-				k = oquvchi["familiya"]->ToString();k = k->Replace("|", "'");
+
+				k = oquvchi["familiya"]->ToString(); k = k->Replace("|", "'");
 				this->malumotfamilya->Text = k;
-				k = oquvchi["otasining_ismi"]->ToString();k = k->Replace("|", "'");
+
+				k = oquvchi["otasining_ismi"]->ToString(); k = k->Replace("|", "'");
 				this->malumotota->Text = k;
-				k = oquvchi["jshshir"]->ToString();k = k->Replace("|", "'");
+
+				k = oquvchi["jshshir"]->ToString();
 				this->malumotjshshir->Text = k;
-				k = oquvchi["manzil"]->ToString();k = k->Replace("|", "'");
+
+				k = oquvchi["manzil"]->ToString(); k = k->Replace("|", "'");
 				this->malumotmanzil->Text = k;
+				if (oquvchi["rasm"] != DBNull::Value && oquvchi["rasm"]->ToString() != "")
+				{
+					try {
+						this->malumotrasm->Image = Image::FromFile(oquvchi["rasm"]->ToString());
+					}
+					catch (...) {
+						this->malumotrasm->Image = nullptr;
+					}
+				}
+				else {
+					this->malumotrasm->Image = nullptr;
+				}
+				k = oquvchi["id"]->ToString();
+				oquvchi->Close();
+
+				// ✅ LOG YOZISH — 'QIDIRUV' (avvalgidek, 'QIDIRISH' emas)
+				String^ logQuery = "INSERT INTO HarakatlarStatistikasi (shaxs_id, jshshir, turi, izoh) VALUES (@id, @jsh, 'QIDIRUV', @izoh)";
+				SqlCommand^ logCmd = gcnew SqlCommand(logQuery, ulanish);
+
+				logCmd->Parameters->AddWithValue("@id", k);
+				logCmd->Parameters->AddWithValue("@jsh", jshshirizlash->Text->Trim());
+				logCmd->Parameters->AddWithValue("@izoh", activeLogin);
+
+				logCmd->ExecuteNonQuery();
 			}
 			else {
+				oquvchi->Close();
+
 				MessageBox::Show("Bunday JShShIR bilan foydalanuvchi topilmadi.", "Natija", MessageBoxButtons::OK, MessageBoxIcon::Exclamation);
+
+				malumotlogin->Visible = false;
+				malumotparol->Visible = false;
+
 				malumotlogin->Text = "";
 				malumotparol->Text = "";
 				malumotism->Text = "";
 				malumotfamilya->Text = "";
 				malumotota->Text = "";
 				malumotmanzil->Text = "";
+
+				// TOPILMAGAN QIDIRUVNI HAM YOZAMIZ
+				String^ logQuery = "INSERT INTO HarakatlarStatistikasi (shaxs_id, jshshir, turi, izoh) VALUES (@id, @jsh, 'QIDIRUV', 'Topilmadi')";
+				SqlCommand^ logCmd = gcnew SqlCommand(logQuery, ulanish);
+
+				logCmd->Parameters->AddWithValue("@id", "0");
+				logCmd->Parameters->AddWithValue("@jsh", jshshirizlash->Text->Trim());
+
+				logCmd->ExecuteNonQuery();
 			}
 		}
 		catch (Exception^ ex) {
@@ -2347,7 +2646,6 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		finally {
 			ulanish->Close();
 		}
-
 	}
 		private:System::Void qayta_Click(System::Object^ sender, System::EventArgs^ e) {
 			if (!m_connected) { bosh_Click(sender, e); return; }
@@ -2358,7 +2656,7 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 			if (m_timer != nullptr) m_timer->Start();
 		}
 	private: System::Void Forma4_FormClosing(System::Object^ sender, System::Windows::Forms::FormClosingEventArgs^ e) {
-		
+
 	}
 	private: System::Void asosiybatafsil_Click(System::Object^ sender, System::EventArgs^ e) {
 		panelasosiy->Visible = false;
@@ -2368,7 +2666,7 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 		jshshirizlash->Visible = false;
 		malumotizlash->Visible = false;
 		malumotlogin->Visible = false;
-		malumotparol->Visible=false;
+		malumotparol->Visible = false;
 		label18->Visible = true;
 		label19->Visible = true;
 		checkBox1->Visible = true;
@@ -2388,7 +2686,7 @@ private: System::Void Jshshir_TextChanged(System::Object^ sender, System::EventA
 				malumotota->Text = r["otasining_ismi"]->ToString();
 				malumotjshshir->Text = r["jshshir"]->ToString();
 				malumotmanzil->Text = r["manzil"]->ToString();
-
+				malumotrasm->Image = Image::FromFile(r["rasm"]->ToString());
 				if (r["login"] != DBNull::Value && r["login"]->ToString() != "" && r["parol"] != DBNull::Value && r["parol"]->ToString() != "")
 				{
 					label18->Visible = true;
@@ -2428,5 +2726,82 @@ private: System::Void checkBox2_CheckedChanged(System::Object^ sender, System::E
 	}
 }
 
+private: System::Void statistik_Click(System::Object^ sender, System::EventArgs^ e) {
+	gridKirish->AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode::Fill;
+	gridQidiruv->AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode::Fill;
+	menu->Size = System::Drawing::Size(48, 48);
+	menu->Text = "";
+	if (panel1->Visible == true) panel1->Visible = false;
+	if (panelmalumot->Visible == true) panelmalumot->Visible = false;
+	if (panelhisob->Visible == true) panelhisob->Visible = false;
+	if (panelasosiy->Visible == true) panelasosiy->Visible = false;
+	if (panelqoshish->Visible == true) panelqoshish->Visible = false;
+	panel1->BringToFront();
+	menu->BringToFront();
+	panel1->Invalidate();
+	boshlabel->Text = L"Statistika";
+	panel3->Visible = true;
+	if (videoSource != nullptr && videoSource->IsRunning)
+	{
+		videoSource->Stop();
+	}
+	String^ connStr = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True;";
+	SqlConnection^ conn = gcnew SqlConnection(connStr);
+
+	// 1. Kirishlar jadvali (oxirgi yozilganlar tepada)
+	SqlDataAdapter^ daKirish = gcnew SqlDataAdapter(
+		"SELECT shaxs_id, jshshir, izoh, vaqt FROM HarakatlarStatistikasi WHERE turi='KIRISH' ORDER BY vaqt DESC",
+		conn);
+
+	DataTable^ dtKirish = gcnew DataTable();
+	daKirish->Fill(dtKirish);
+	gridKirish->DataSource = dtKirish;
+
+
+	// 2. Qidiruvlar jadvali (oxirgi yozilganlar tepada)
+	SqlDataAdapter^ daQidiruv = gcnew SqlDataAdapter(
+		"SELECT shaxs_id, jshshir, izoh, vaqt FROM HarakatlarStatistikasi WHERE turi='QIDIRUV' ORDER BY vaqt DESC",
+		conn);
+
+	DataTable^ dtQidiruv = gcnew DataTable();
+	daQidiruv->Fill(dtQidiruv);
+	gridQidiruv->DataSource = dtQidiruv;
+
+}
+private: System::Void checkBox1_CheckedChanged(System::Object^ sender, System::EventArgs^ e) {
+	if (checkBox1->Checked)	malumotparol->UseSystemPasswordChar = false;
+	else malumotparol->UseSystemPasswordChar = true;
+}
+private: System::Void timer1_Tick(System::Object^ sender, System::EventArgs^ e) {
+}
+private: System::Void panel1_Paint(System::Object^ sender, System::Windows::Forms::PaintEventArgs^ e) {
+	Graphics^ g = e->Graphics;
+
+	// 1. Shaffoflikni oshiramiz (210 - bu ostidagi oq inputlarni hiralashtiradi)
+	// Rangni biroz to'qroq qilsangiz (to'q ko'k/kulrang), effekt yaxshi chiqadi
+	Color frostedColor = Color::FromArgb(210, 25, 35, 50);
+
+	System::Drawing::Rectangle rect = panel1->ClientRectangle;
+	SolidBrush^ brush = gcnew SolidBrush(frostedColor);
+
+	// 2. Silliqlashni yoqish
+	g->SmoothingMode = System::Drawing::Drawing2D::SmoothingMode::AntiAlias;
+
+	// 3. Asosiy "tumanli" qatlamni chizish
+	g->FillRectangle(brush, rect);
+
+	// 4. HIYLA: Oqish gradient (Bu shisha yuzasidagi yaltirashni bildiradi)
+	// Bu ostidagi elementlarni vizual ravishda "chuqurlikka" itaradi
+	LinearGradientBrush^ glassShine = gcnew LinearGradientBrush(
+		rect,
+		Color::FromArgb(50, 255, 255, 255), // Tepadagi yaltiroqlik
+		Color::FromArgb(10, 255, 255, 255),
+		LinearGradientMode::Vertical);
+	g->FillRectangle(glassShine, rect);
+
+	// 5. Chegara chizig'i (O'ng tomonda nozik oq chiziq)
+	Pen^ linePen = gcnew Pen(Color::FromArgb(80, 255, 255, 255), 1);
+	g->DrawLine(linePen, rect.Width - 1, 0, rect.Width - 1, rect.Height);
+}
 };
 }

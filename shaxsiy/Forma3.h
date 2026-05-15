@@ -358,29 +358,53 @@ private: System::Void anonimizlash_Click(System::Object^ sender, System::EventAr
 	String^ connString = "Server=.\\SQLEXPRESS; Database=shaxsiy; Trusted_Connection=True; TrustServerCertificate=True;";
 	SqlConnection^ ulanish = gcnew SqlConnection(connString);
 
-	String^ query = "SELECT login, ism, familiya, otasining_ismi, manzil,rasm FROM hisob WHERE jshshir = @jsh";
-
+	String^ query = "SELECT id, ism, familiya, otasining_ismi, manzil, rasm FROM hisob WHERE jshshir = @jsh";
 	SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
 	buyruq->Parameters->AddWithValue("@jsh", anonimjshshir->Text->Trim());
 
 	try {
 		ulanish->Open();
 		SqlDataReader^ oquvchi = buyruq->ExecuteReader();
+
 		if (oquvchi->Read()) {
+
 			k = oquvchi["ism"]->ToString(); k = k->Replace("|", "'");
 			malumotism->Text = k;
+
 			k = oquvchi["familiya"]->ToString(); k = k->Replace("|", "'");
-			malumotfamilya->Text =k;
+			malumotfamilya->Text = k;
+
 			k = oquvchi["otasining_ismi"]->ToString(); k = k->Replace("|", "'");
 			malumotota->Text = k;
+
 			malumotjshshir->Text = anonimjshshir->Text;
+
 			k = oquvchi["manzil"]->ToString(); k = k->Replace("|", "'");
 			malumotmanzil->Text = k;
+
 			k = oquvchi["rasm"]->ToString();
 			anonimrasm->Image = Image::FromFile(k);
+
+			String^ id = oquvchi["id"]->ToString();
+
+			// 🔴 MUHIM: readerni yopamiz (connection yopilmaydi!)
+			oquvchi->Close();
+
+			// 🔥 LOG YOZISH
+			String^ logQuery = "INSERT INTO HarakatlarStatistikasi (shaxs_id, jshshir, turi, izoh) VALUES (@id, @jsh, 'QIDIRUV', @izoh)";
+			SqlCommand^ logCmd = gcnew SqlCommand(logQuery, ulanish);
+
+			logCmd->Parameters->AddWithValue("@id", id);
+			logCmd->Parameters->AddWithValue("@jsh", anonimjshshir->Text->Trim());
+			logCmd->Parameters->AddWithValue("@izoh", "Anonim");
+
+			logCmd->ExecuteNonQuery();
 		}
 		else {
+			oquvchi->Close();
+
 			MessageBox::Show("Bunday JShShIR bilan foydalanuvchi topilmadi.", "Natija", MessageBoxButtons::OK, MessageBoxIcon::Exclamation);
+
 			malumotism->Text = "";
 			malumotfamilya->Text = "";
 			malumotota->Text = "";
