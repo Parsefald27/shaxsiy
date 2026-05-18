@@ -89,16 +89,17 @@ namespace shaxsiy {
 			// 
 			// qaytish
 			// 
-			this->qaytish->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((System::Windows::Forms::AnchorStyles::Bottom | System::Windows::Forms::AnchorStyles::Right));
 			this->qaytish->BackColor = System::Drawing::Color::FromArgb(static_cast<System::Int32>(static_cast<System::Byte>(1)), static_cast<System::Int32>(static_cast<System::Byte>(0)),
 				static_cast<System::Int32>(static_cast<System::Byte>(0)), static_cast<System::Int32>(static_cast<System::Byte>(0)));
 			this->qaytish->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 18.32727F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->qaytish->Location = System::Drawing::Point(787, 454);
+			this->qaytish->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"qaytish.Image")));
+			this->qaytish->ImageAlign = System::Drawing::ContentAlignment::TopLeft;
+			this->qaytish->Location = System::Drawing::Point(12, 12);
 			this->qaytish->Name = L"qaytish";
-			this->qaytish->Size = System::Drawing::Size(191, 50);
+			this->qaytish->Size = System::Drawing::Size(163, 50);
 			this->qaytish->TabIndex = 1;
-			this->qaytish->Text = L"ortga qaytish";
+			this->qaytish->Text = L"      Qaytish";
 			this->qaytish->UseVisualStyleBackColor = false;
 			this->qaytish->Click += gcnew System::EventHandler(this, &Forma3::qaytish_Click);
 			// 
@@ -107,7 +108,7 @@ namespace shaxsiy {
 			this->anonimjshshir->Anchor = System::Windows::Forms::AnchorStyles::Top;
 			this->anonimjshshir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular,
 				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
-			this->anonimjshshir->Location = System::Drawing::Point(272, 28);
+			this->anonimjshshir->Location = System::Drawing::Point(363, 24);
 			this->anonimjshshir->Name = L"anonimjshshir";
 			this->anonimjshshir->Size = System::Drawing::Size(383, 31);
 			this->anonimjshshir->TabIndex = 2;
@@ -124,7 +125,7 @@ namespace shaxsiy {
 			this->label2->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 18.32727F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
 			this->label2->ForeColor = System::Drawing::SystemColors::ActiveCaptionText;
-			this->label2->Location = System::Drawing::Point(134, 24);
+			this->label2->Location = System::Drawing::Point(225, 20);
 			this->label2->Name = L"label2";
 			this->label2->Size = System::Drawing::Size(132, 32);
 			this->label2->TabIndex = 3;
@@ -135,11 +136,13 @@ namespace shaxsiy {
 			this->anonimizlash->Anchor = System::Windows::Forms::AnchorStyles::Top;
 			this->anonimizlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular,
 				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
-			this->anonimizlash->Location = System::Drawing::Point(677, 27);
+			this->anonimizlash->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"anonimizlash.Image")));
+			this->anonimizlash->ImageAlign = System::Drawing::ContentAlignment::MiddleLeft;
+			this->anonimizlash->Location = System::Drawing::Point(767, 20);
 			this->anonimizlash->Name = L"anonimizlash";
-			this->anonimizlash->Size = System::Drawing::Size(112, 31);
+			this->anonimizlash->Size = System::Drawing::Size(112, 39);
 			this->anonimizlash->TabIndex = 4;
-			this->anonimizlash->Text = L"Izlash";
+			this->anonimizlash->Text = L"  Izlash";
 			this->anonimizlash->UseVisualStyleBackColor = true;
 			this->anonimizlash->Click += gcnew System::EventHandler(this, &Forma3::anonimizlash_Click);
 			// 

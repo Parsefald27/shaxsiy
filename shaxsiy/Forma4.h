@@ -40,6 +40,8 @@ namespace shaxsiy {
 	private: System::Windows::Forms::Button^ statistik;
 	private: System::Windows::Forms::Timer^ sidebarTimer;
 	private: System::Windows::Forms::Timer^ timer1;
+	private: System::Windows::Forms::Button^ kirishyuklash;
+	private: System::Windows::Forms::Button^ qidiryuklash;
 
 
 
@@ -524,8 +526,10 @@ private: System::ComponentModel::IContainer^ components;
 			this->panel3 = (gcnew System::Windows::Forms::Panel());
 			this->tabControl1 = (gcnew System::Windows::Forms::TabControl());
 			this->tabPage1 = (gcnew System::Windows::Forms::TabPage());
+			this->kirishyuklash = (gcnew System::Windows::Forms::Button());
 			this->gridKirish = (gcnew System::Windows::Forms::DataGridView());
 			this->tabPage2 = (gcnew System::Windows::Forms::TabPage());
+			this->qidiryuklash = (gcnew System::Windows::Forms::Button());
 			this->gridQidiruv = (gcnew System::Windows::Forms::DataGridView());
 			this->sidebarTimer = (gcnew System::Windows::Forms::Timer(this->components));
 			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
@@ -764,11 +768,11 @@ private: System::ComponentModel::IContainer^ components;
 			this->panelasosiy->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
 				| System::Windows::Forms::AnchorStyles::Left)
 				| System::Windows::Forms::AnchorStyles::Right));
+			this->panelasosiy->Controls->Add(this->asosiybatafsil);
+			this->panelasosiy->Controls->Add(this->qayta);
+			this->panelasosiy->Controls->Add(this->asosiylabel);
 			this->panelasosiy->Controls->Add(this->asosiytext);
 			this->panelasosiy->Controls->Add(this->asosiypicture);
-			this->panelasosiy->Controls->Add(this->asosiylabel);
-			this->panelasosiy->Controls->Add(this->qayta);
-			this->panelasosiy->Controls->Add(this->asosiybatafsil);
 			this->panelasosiy->Location = System::Drawing::Point(0, 72);
 			this->panelasosiy->Name = L"panelasosiy";
 			this->panelasosiy->Size = System::Drawing::Size(1002, 441);
@@ -1554,11 +1558,13 @@ private: System::ComponentModel::IContainer^ components;
 			this->tahrir->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->tahrir->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tahrir->Location = System::Drawing::Point(802, 355);
+			this->tahrir->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"tahrir.Image")));
+			this->tahrir->ImageAlign = System::Drawing::ContentAlignment::MiddleLeft;
+			this->tahrir->Location = System::Drawing::Point(768, 355);
 			this->tahrir->Name = L"tahrir";
-			this->tahrir->Size = System::Drawing::Size(111, 31);
+			this->tahrir->Size = System::Drawing::Size(145, 37);
 			this->tahrir->TabIndex = 2;
-			this->tahrir->Text = L"Tahrirlash";
+			this->tahrir->Text = L"   Tahrirlash";
 			this->tahrir->UseVisualStyleBackColor = true;
 			this->tahrir->Click += gcnew System::EventHandler(this, &Forma4::tahrir_Click);
 			// 
@@ -1568,11 +1574,13 @@ private: System::ComponentModel::IContainer^ components;
 			this->malumotizlash->Cursor = System::Windows::Forms::Cursors::Hand;
 			this->malumotizlash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 11.78182F, System::Drawing::FontStyle::Bold, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
+			this->malumotizlash->Image = (cli::safe_cast<System::Drawing::Image^>(resources->GetObject(L"malumotizlash.Image")));
+			this->malumotizlash->ImageAlign = System::Drawing::ContentAlignment::MiddleLeft;
 			this->malumotizlash->Location = System::Drawing::Point(802, 37);
 			this->malumotizlash->Name = L"malumotizlash";
-			this->malumotizlash->Size = System::Drawing::Size(111, 31);
+			this->malumotizlash->Size = System::Drawing::Size(111, 35);
 			this->malumotizlash->TabIndex = 2;
-			this->malumotizlash->Text = L"Izlash";
+			this->malumotizlash->Text = L" Izlash";
 			this->malumotizlash->UseVisualStyleBackColor = true;
 			this->malumotizlash->Click += gcnew System::EventHandler(this, &Forma4::malumotizlash_Click);
 			// 
@@ -1622,6 +1630,7 @@ private: System::ComponentModel::IContainer^ components;
 			this->paneltahrir->Name = L"paneltahrir";
 			this->paneltahrir->Size = System::Drawing::Size(1002, 441);
 			this->paneltahrir->TabIndex = 19;
+			this->paneltahrir->Paint += gcnew System::Windows::Forms::PaintEventHandler(this, &Forma4::paneltahrir_Paint);
 			// 
 			// saqlash
 			// 
@@ -1781,7 +1790,9 @@ private: System::ComponentModel::IContainer^ components;
 			// 
 			// panel3
 			// 
-			this->panel3->Anchor = System::Windows::Forms::AnchorStyles::None;
+			this->panel3->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
+				| System::Windows::Forms::AnchorStyles::Left)
+				| System::Windows::Forms::AnchorStyles::Right));
 			this->panel3->Controls->Add(this->tabControl1);
 			this->panel3->Location = System::Drawing::Point(0, 75);
 			this->panel3->Name = L"panel3";
@@ -1792,51 +1803,84 @@ private: System::ComponentModel::IContainer^ components;
 			// 
 			this->tabControl1->Controls->Add(this->tabPage1);
 			this->tabControl1->Controls->Add(this->tabPage2);
-			this->tabControl1->Dock = System::Windows::Forms::DockStyle::Fill;
 			this->tabControl1->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 9.818182F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(162)));
-			this->tabControl1->Location = System::Drawing::Point(0, 0);
+			this->tabControl1->Location = System::Drawing::Point(0, 13);
 			this->tabControl1->Name = L"tabControl1";
 			this->tabControl1->SelectedIndex = 0;
-			this->tabControl1->Size = System::Drawing::Size(1002, 441);
+			this->tabControl1->Size = System::Drawing::Size(1002, 428);
 			this->tabControl1->TabIndex = 0;
 			// 
 			// tabPage1
 			// 
+			this->tabPage1->Controls->Add(this->kirishyuklash);
 			this->tabPage1->Controls->Add(this->gridKirish);
 			this->tabPage1->Location = System::Drawing::Point(4, 27);
 			this->tabPage1->Name = L"tabPage1";
 			this->tabPage1->Padding = System::Windows::Forms::Padding(3);
-			this->tabPage1->Size = System::Drawing::Size(994, 410);
+			this->tabPage1->Size = System::Drawing::Size(994, 397);
 			this->tabPage1->TabIndex = 0;
 			this->tabPage1->Text = L"Kirish";
 			this->tabPage1->UseVisualStyleBackColor = true;
 			// 
+			// kirishyuklash
+			// 
+			this->kirishyuklash->BackColor = System::Drawing::Color::Transparent;
+			this->kirishyuklash->FlatAppearance->BorderSize = 0;
+			this->kirishyuklash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular,
+				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
+			this->kirishyuklash->Location = System::Drawing::Point(889, 364);
+			this->kirishyuklash->Name = L"kirishyuklash";
+			this->kirishyuklash->Size = System::Drawing::Size(106, 30);
+			this->kirishyuklash->TabIndex = 1;
+			this->kirishyuklash->Text = L"Yuklash";
+			this->kirishyuklash->UseVisualStyleBackColor = false;
+			this->kirishyuklash->Click += gcnew System::EventHandler(this, &Forma4::kirishyuklash_Click);
+			// 
 			// gridKirish
 			// 
+			this->gridKirish->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
+				| System::Windows::Forms::AnchorStyles::Left)
+				| System::Windows::Forms::AnchorStyles::Right));
 			this->gridKirish->ColumnHeadersHeightSizeMode = System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
-			this->gridKirish->Dock = System::Windows::Forms::DockStyle::Fill;
 			this->gridKirish->Location = System::Drawing::Point(3, 3);
 			this->gridKirish->Name = L"gridKirish";
 			this->gridKirish->RowHeadersWidth = 47;
-			this->gridKirish->Size = System::Drawing::Size(988, 404);
+			this->gridKirish->Size = System::Drawing::Size(988, 391);
 			this->gridKirish->TabIndex = 0;
 			// 
 			// tabPage2
 			// 
+			this->tabPage2->Controls->Add(this->qidiryuklash);
 			this->tabPage2->Controls->Add(this->gridQidiruv);
 			this->tabPage2->Location = System::Drawing::Point(4, 27);
 			this->tabPage2->Name = L"tabPage2";
 			this->tabPage2->Padding = System::Windows::Forms::Padding(3);
-			this->tabPage2->Size = System::Drawing::Size(994, 410);
+			this->tabPage2->Size = System::Drawing::Size(994, 397);
 			this->tabPage2->TabIndex = 1;
 			this->tabPage2->Text = L"Qidiruv";
 			this->tabPage2->UseVisualStyleBackColor = true;
 			// 
+			// qidiryuklash
+			// 
+			this->qidiryuklash->BackColor = System::Drawing::Color::Transparent;
+			this->qidiryuklash->FlatAppearance->BorderSize = 0;
+			this->qidiryuklash->Font = (gcnew System::Drawing::Font(L"Microsoft Sans Serif", 13.74545F, System::Drawing::FontStyle::Regular,
+				System::Drawing::GraphicsUnit::Point, static_cast<System::Byte>(162)));
+			this->qidiryuklash->Location = System::Drawing::Point(889, 365);
+			this->qidiryuklash->Name = L"qidiryuklash";
+			this->qidiryuklash->Size = System::Drawing::Size(106, 30);
+			this->qidiryuklash->TabIndex = 1;
+			this->qidiryuklash->Text = L"Yuklash";
+			this->qidiryuklash->UseVisualStyleBackColor = false;
+			this->qidiryuklash->Click += gcnew System::EventHandler(this, &Forma4::qidiryuklash_Click);
+			// 
 			// gridQidiruv
 			// 
+			this->gridQidiruv->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
+				| System::Windows::Forms::AnchorStyles::Left)
+				| System::Windows::Forms::AnchorStyles::Right));
 			this->gridQidiruv->ColumnHeadersHeightSizeMode = System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
-			this->gridQidiruv->Dock = System::Windows::Forms::DockStyle::Fill;
 			this->gridQidiruv->Location = System::Drawing::Point(3, 3);
 			this->gridQidiruv->Name = L"gridQidiruv";
 			this->gridQidiruv->RowHeadersWidth = 47;
@@ -1861,12 +1905,12 @@ private: System::ComponentModel::IContainer^ components;
 			this->Controls->Add(this->menu);
 			this->Controls->Add(this->panel1);
 			this->Controls->Add(this->panel2);
-			this->Controls->Add(this->panelmalumot);
-			this->Controls->Add(this->panel3);
 			this->Controls->Add(this->panelqoshish);
 			this->Controls->Add(this->panelasosiy);
 			this->Controls->Add(this->panelhisob);
 			this->Controls->Add(this->paneltahrir);
+			this->Controls->Add(this->panelmalumot);
+			this->Controls->Add(this->panel3);
 			this->Icon = (cli::safe_cast<System::Drawing::Icon^>(resources->GetObject(L"$this.Icon")));
 			this->Name = L"Forma4";
 			this->Text = L"Asosiy";
@@ -2243,7 +2287,7 @@ private: System::Void menu_Click(System::Object^ sender, System::EventArgs^ e) {
 		if (open->ShowDialog() == System::Windows::Forms::DialogResult::OK)
 		{
 			rasm = open->FileName;
-			rasmtahrir->Image = Image::FromFile(rasm);
+			rasmqoshish->Image = Image::FromFile(rasm);
 		}
 	}
 	private: System::Void qoshish_Click(System::Object^ sender, System::EventArgs^ e) {
@@ -2495,8 +2539,8 @@ private: System::Void menu_Click(System::Object^ sender, System::EventArgs^ e) {
 			ulanish->Open();
 			// ✅ TUZATILDI: Ustun tartibi bilan parametr tartibi mos keltirildi
 			// (ism, otasining_ismi, familiya -> @ism, @otasining_ismi, @familya)
-			String^ query = "INSERT INTO hisob (login, parol, ism, otasining_ismi, familiya, jshshir, manzil, rasm) " +
-				"VALUES (@login, @parol, @ism, @otasining_ismi, @familya, @jshshir, @manzil, @rasm)";
+			String^ query = "INSERT INTO hisob (login, parol, ism, familiya, otasining_ismi, jshshir, manzil, rasm) " +
+				"VALUES (@login, @parol, @ism, @familya, @otasining_ismi, @jshshir, @manzil, @rasm)";
 
 			SqlCommand^ buyruq = gcnew SqlCommand(query, ulanish);
 			malumot = qoshishlogin->Text; malumot = malumot->Replace("'", "|");
@@ -2802,6 +2846,72 @@ private: System::Void panel1_Paint(System::Object^ sender, System::Windows::Form
 	// 5. Chegara chizig'i (O'ng tomonda nozik oq chiziq)
 	Pen^ linePen = gcnew Pen(Color::FromArgb(80, 255, 255, 255), 1);
 	g->DrawLine(linePen, rect.Width - 1, 0, rect.Width - 1, rect.Height);
+}
+private: System::Void paneltahrir_Paint(System::Object^ sender, System::Windows::Forms::PaintEventArgs^ e) {
+}
+private: System::Void kirishyuklash_Click(System::Object^ sender, System::EventArgs^ e) {
+	SaveFileDialog^ saqlash = gcnew SaveFileDialog();
+	saqlash->Filter = "Excel file (*.csv)|*.csv";
+	saqlash->FileName = "kirishlar.csv";
+
+	if (saqlash->ShowDialog() == System::Windows::Forms::DialogResult::OK)
+	{
+		System::Text::StringBuilder^ sb = gcnew System::Text::StringBuilder();
+
+		for (int i = 0; i < gridKirish->Columns->Count; i++)
+		{
+			sb->Append(gridKirish->Columns[i]->HeaderText + ",");
+		}
+		sb->AppendLine();
+
+		for each(DataGridViewRow ^ row in gridKirish->Rows)
+		{
+			if (!row->IsNewRow)
+			{
+				for (int i = 0; i < row->Cells->Count; i++)
+				{
+					sb->Append(row->Cells[i]->Value + ",");
+				}
+				sb->AppendLine();
+			}
+		}
+
+		System::IO::File::WriteAllText(saqlash->FileName, sb->ToString(), System::Text::Encoding::UTF8);
+
+		MessageBox::Show("Kirishlar Excelga yuklandi!");
+	}
+}
+private: System::Void qidiryuklash_Click(System::Object^ sender, System::EventArgs^ e) {
+	SaveFileDialog^ saqlash = gcnew SaveFileDialog();
+	saqlash->Filter = "Excel file (*.csv)|*.csv";
+	saqlash->FileName = "qidiruvlar.csv";
+
+	if (saqlash->ShowDialog() == System::Windows::Forms::DialogResult::OK)
+	{
+		System::Text::StringBuilder^ sb = gcnew System::Text::StringBuilder();
+
+		for (int i = 0; i < gridQidiruv->Columns->Count; i++)
+		{
+			sb->Append(gridQidiruv->Columns[i]->HeaderText + ",");
+		}
+		sb->AppendLine();
+
+		for each(DataGridViewRow ^ row in gridQidiruv->Rows)
+		{
+			if (!row->IsNewRow)
+			{
+				for (int i = 0; i < row->Cells->Count; i++)
+				{
+					sb->Append(row->Cells[i]->Value + ",");
+				}
+				sb->AppendLine();
+			}
+		}
+
+		System::IO::File::WriteAllText(saqlash->FileName, sb->ToString(), System::Text::Encoding::UTF8);
+
+		MessageBox::Show("Qidiruvlar Excelga yuklandi!");
+	}
 }
 };
 }
